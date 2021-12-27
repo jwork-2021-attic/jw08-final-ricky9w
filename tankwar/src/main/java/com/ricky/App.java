@@ -70,10 +70,17 @@ public class App extends GameApplication {
 
     @Override
     protected void onUpdate(double tpf) {
-
+        
     }
 
-    
+    // TODO: 当前客户端中的玩家死亡处理
+    private boolean playerKilled = false;
+
+
+    // TODO: 添加一组游戏状态变量
+    // 1. 四个玩家当前占领的领地情况
+    // 2. 四个玩家的血量
+
     public static void main(String[] args) {
         System.out.println("Hello World");
         launch(args);
