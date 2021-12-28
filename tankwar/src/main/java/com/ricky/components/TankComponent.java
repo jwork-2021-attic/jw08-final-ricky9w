@@ -20,8 +20,10 @@ import com.ricky.Config;
 
 public class TankComponent extends Component {
     
+    // 移动组件
+    private MoveComponent moveComponent;
 
-    // TODO: 添加移动单元处理坦克的移动
+    // 图形展示组件
     private ViewComponent view;
 
     private Texture texture;
@@ -62,19 +64,23 @@ public class TankComponent extends Component {
 
     // TODO: 添加坦克行动相关处理: 上下左右和射击
     public void up() {
-
+        moveComponent.setMoveDirection(Direction.UP);
+        frames++;
     }
 
     public void down() {
-
+        moveComponent.setMoveDirection(Direction.DOWN);
+        frames++;
     }
 
     public void left() {
-
+        moveComponent.setMoveDirection(Direction.LEFT);
+        frames++;
     }
 
     public void right() {
-
+        moveComponent.setMoveDirection(Direction.RIGHT);
+        frames++;
     }
 
     public void shoot() {
