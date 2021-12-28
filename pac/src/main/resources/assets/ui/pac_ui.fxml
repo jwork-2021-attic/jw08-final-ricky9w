@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.layout.Pane?>
+
+<?import javafx.scene.shape.Rectangle?>
+<?import javafx.scene.canvas.Canvas?>
+<?import com.almasb.fxgl.ui.ProgressBar?>
+
+<Pane fx:id="root" prefWidth="80" prefHeight="840"
+      xmlns="http://javafx.com/javafx/8.0.60"
+      xmlns:fx="http://javafx.com/fxml/1">
+
+    <Rectangle fill="black" width="80" height="840" />
+
+    <Label fx:id="labelScore" translateX="10" translateY="790" textFill="white" />
+
+    <Label fx:id="labelTeleport" translateX="10" translateY="500" textFill="white" />
+
+</Pane>
