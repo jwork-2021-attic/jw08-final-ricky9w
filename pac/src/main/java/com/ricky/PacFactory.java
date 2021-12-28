@@ -18,6 +18,7 @@ import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.util.Duration;
 import kotlin.ExtensionFunctionType;
+import kotlin.random.Random;
 
 import java.util.Map;
 import java.util.concurrent.LinkedBlockingDeque;
@@ -27,10 +28,13 @@ import javax.sound.midi.Receiver;
 import javax.swing.plaf.TextUI;
 
 import static com.almasb.fxgl.dsl.FXGL.*;
+import static com.almasb.fxgl.dsl.FXGL.entityBuilder;
+import static com.almasb.fxgl.dsl.FXGL.texture;
 
 import static com.ricky.PacType.*;
 import static com.ricky.Config.*;
 import com.ricky.components.PlayerComponent;
+import com.ricky.components.ai.DelayChaseComponent;
 
 public class PacFactory implements EntityFactory {
     
@@ -85,15 +89,35 @@ public class PacFactory implements EntityFactory {
     }
 
     // TODO: 设置敌人移动操控
+    private Supplier<Component> aiComponents = new Supplier<>() {
+        private Map<Integer, Supplier<Component>> components = Map.of(
+            0, () -> new DelayChaseComponent().withDelay(),
+            1, RandomAStarMoveComponent::new,
+            2, DelayChaseComponent::new
+        );
+
+        private int index = 0;
+
+        @Override
+        public Component get() {
+            if (index == 3)
+                index = 0;
+
+            return components.get(index++).get();
+        }
+    };
+
     @Spawns("E")
     public Entity newEnemy(SpawnData data) {
         return entityBuilder(data)
                 .type(ENEMY)
-                .bbox(new HitBox(new Point2D(2, 2), BoundingShape.box(36, 36)))
+                .bbox(new HitBox(new Point2D(2, 2), BoundingShape.box(32, 36)))
                 .anchorFromCenter()
                 .with(new CollidableComponent(true))
+                .viewWithBBox(texture("enemy.png", 36, 36))
                 .with(new CellMoveComponent(BLOCK_SIZE, BLOCK_SIZE, 125))
                 .with(new AStarMoveComponent(new LazyValue<>(() -> geto("grid"))))
+                .with(aiComponents.get())
                 .build();
     }
 
