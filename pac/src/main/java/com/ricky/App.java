@@ -7,6 +7,8 @@ import com.almasb.fxgl.app.scene.FXGLMenu;
 import com.almasb.fxgl.app.scene.SceneFactory;
 import com.almasb.fxgl.app.scene.FXGLDefaultMenu.MenuContent;
 import com.almasb.fxgl.entity.Entity;
+import com.almasb.fxgl.entity.SpawnData;
+import com.almasb.fxgl.entity.components.IDComponent;
 import com.almasb.fxgl.entity.level.Level;
 import com.almasb.fxgl.entity.level.text.TextLevelLoader;
 import com.almasb.fxgl.input.UserAction;
@@ -19,6 +21,7 @@ import com.almasb.fxgl.ui.UI;
 import com.ricky.components.PlayerComponent;
 import com.ricky.ui.PacUIController;
 import com.ricky.utils.PosData;
+import com.almasb.fxgl.core.collection.Array;
 import com.almasb.fxgl.core.serialization.Bundle;
 import java.util.EnumSet;
 
@@ -40,9 +43,12 @@ import static com.almasb.fxgl.dsl.FXGL.*;
 import static com.ricky.Config.*;
 import static com.ricky.PacType.*;
 
+import java.net.Socket;
 import java.sql.Time;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import javax.sql.ConnectionPoolDataSource;
@@ -56,7 +62,7 @@ public class App extends GameApplication {
         settings.setEnabledMenuItems(EnumSet.allOf(MenuItem.class));
         // 显示保存和加载选项
         // settings.setEnabledMenuItems(EnumSet.of(MenuItem.SAVE_LOAD));
-        
+
 
         settings.setWidth(MAP_SIZE * BLOCK_SIZE + UI_SIZE * 2);
         settings.setHeight(MAP_SIZE * BLOCK_SIZE + 60);
@@ -65,14 +71,17 @@ public class App extends GameApplication {
         settings.setManualResizeEnabled(false);
     }
 
-    
-
     private Entity getPlayer() {
-        return getGameWorld().getSingleton(PLAYER);
+        return getGameWorld().getEntityByID("player", CLIENT_ID).get();
     }
 
     private PlayerComponent getPlayerComponent() {
-        return getPlayer().getComponent(PlayerComponent.class);
+        var player = getGameWorld().getEntityByID("player", CLIENT_ID);
+        
+        if (player.isEmpty())
+            return null;
+            
+        return player.get().getComponent(PlayerComponent.class);
     }
 
     @Override
@@ -81,28 +90,32 @@ public class App extends GameApplication {
         getInput().addAction(new UserAction("Up") {
             @Override
             protected void onAction() {
-                getPlayerComponent().up();
+                if (getPlayerComponent() != null)
+                    getPlayerComponent().up();
             }
         }, KeyCode.W);
 
         getInput().addAction(new UserAction("Down") {
             @Override
             protected void onAction() {
-                getPlayerComponent().down();
+                if (getPlayerComponent() != null)
+                    getPlayerComponent().down();
             }
         }, KeyCode.S);
 
         getInput().addAction(new UserAction("Left") {
             @Override
             protected void onAction() {
-                getPlayerComponent().left();
+                if (getPlayerComponent() != null)
+                    getPlayerComponent().left();
             }
         }, KeyCode.A);
 
         getInput().addAction(new UserAction("Right") {
             @Override
             protected void onAction() {
-                getPlayerComponent().right();
+                if (getPlayerComponent() != null)
+                    getPlayerComponent().right();
             }
         }, KeyCode.D);
 
@@ -144,18 +157,18 @@ public class App extends GameApplication {
                     pos.enemies.add(new Pair(enemy.getX(), enemy.getY()));
                 }
 
-                /* 
-                // FIXME: 保存所有玩家坐标
-                save.player1 = getGameWorld().getSingleton(PLAYER1).getPosition();
-                save.player2 = getGameWorld().getSingleton(PLAYER2).getPosition();
-                save.player3 = getGameWorld().getSingleton(PLAYER3).getPosition();
-                save.player4 = getGameWorld().getSingleton(PLAYER4).getPosition();  */
+                // 保存所有玩家坐标
+                for (int i = 1; i <= 4; i++) {
+                    var player = getGameWorld().getEntityByID("player", i);
 
-                // 保存所有玩家得分
-                bundle.put("score1", geti("score1"));
-                bundle.put("score2", geti("score2"));
-                bundle.put("score3", geti("score3"));
-                bundle.put("score4", geti("score4"));
+                    if (!player.isEmpty()) {
+                        pos.players.put(i, new Pair(player.get().getX(), player.get().getY()));
+                    }
+                }
+
+                // 保存所有玩家得分和状态
+                bundle.put("scores", scores);
+                bundle.put("alives", alives);
 
                 // 保存其他信息
                 bundle.put("time", geti("time"));
@@ -164,7 +177,6 @@ public class App extends GameApplication {
                 
                 data.putBundle(bundle);
 
-                System.out.println(coins.size());
             }
 
             @Override
@@ -174,6 +186,7 @@ public class App extends GameApplication {
                 // 从 bundle 中取出数据
                 PosData pos = bundle.get("pos");
                 
+                // 恢复所有entity
                 for (var coinPos : pos.coins) {
                     getGameWorld().spawn("0", new Point2D(coinPos.getKey(), coinPos.getValue()));
                 }
@@ -182,33 +195,45 @@ public class App extends GameApplication {
                     getGameWorld().spawn("E", ePos.getKey(), ePos.getValue());
                 }
 
-                getGameWorld().spawn("P", SPAWN_P1);
+                for (var pPos : pos.players.entrySet()) {
+                    SpawnData pData = new SpawnData(new Point2D(pPos.getValue().getKey(), pPos.getValue().getValue()));
+                    pData.put("name", "player");
+                    pData.put("id", pPos.getKey());
+                    getGameWorld().spawn("P", pData);
+                }
 
-                int time = bundle.get("time");
-
-                System.out.println(pos.coins.size());
+                // 恢复其他变量
+                set("time", bundle.get("time"));
+                set("coins", pos.coins.size());
                 
+                scores = ((Integer[])bundle.get("scores")).clone();
+                alives = ((Boolean[])bundle.get("alives")).clone();
+
             }
         });
     }
 
-    
+    private Integer[] scores = new Integer[4];
+    private Boolean[] alives = new Boolean[4];
+
 
     @Override
     protected void initGameVars(Map<String, Object> vars) {
         vars.put("score", 0);
         vars.put("coins", 0);
+        // 初始化时间信息
         vars.put("time", TIME_PER_LEVEL);
-        // 四个玩家的得分
-        vars.put("score1", 0);
-        vars.put("score2", 0);
-        vars.put("score3", 0);
-        vars.put("score4", 0);
+        // 初始化玩家信息
+        for (int i = 0; i < 4; i++) {
+            scores[i] = 0;
+            alives[i] = true;   
+        }
     }
 
 
     // 判断是否是重新加载游戏
     boolean isReload = false;
+
     @Override
     protected void initGame() {
         getGameScene().setBackgroundColor(Color.BLACK);
@@ -216,15 +241,26 @@ public class App extends GameApplication {
         getGameWorld().addEntityFactory(new PacFactory());
 
         if (!isReload) { // 重新生成游戏
+
+            // 初始地图
             Level origin = getAssetLoader().loadLevel("origin.txt", new TextLevelLoader(40, 40, ' '));
             getGameWorld().setLevel(origin);
 
-            getGameWorld().spawn("P", SPAWN_P1);
-            getGameWorld().spawn("E", SPAWN_E1);
-            getGameWorld().spawn("E", SPAWN_E2);
-            getGameWorld().spawn("E", SPAWN_E3);
-            getGameWorld().spawn("E", SPAWN_E4);
-        } else { // 加载游戏
+            // 生成四个玩家
+            for (int i = 1; i <= 4; i++) {
+                SpawnData pData = new SpawnData(SPAWN_PLAYERS[i - 1]);
+                pData.put("name", "player");
+                pData.put("id", i);
+                getGameWorld().spawn("P", pData);
+            }
+
+            // 生成四个敌人
+            for (int i = 1; i <= 4; i++) {
+                SpawnData pData = new SpawnData(SPAWN_ENEMIES[i - 1]);
+                getGameWorld().spawn("E", pData);
+            }
+
+        } else { // 加载游戏, 仅加载地图模块, 其他实体在 onLoad() 方法中加载
             Level reload = getAssetLoader().loadLevel("reload.txt", new TextLevelLoader(40, 40, ' '));
             getGameWorld().setLevel(reload);
         }
@@ -248,18 +284,42 @@ public class App extends GameApplication {
         
         getWorldProperties().<Integer>addListener("time", (old, now) -> {
             if (now == 0) {
-                onTimeOut();
+                gameOver();
             }
         });
 
     }
 
-    // TODO: 初始化物理引擎
+    // 初始化物理引擎
     @Override
     protected void initPhysics() {
-        onCollision(PLAYER, ENEMY, (p, e) -> gameOver());
+        onCollision(PLAYER, ENEMY, (p, e) -> {
+            var id = p.getComponent(IDComponent.class).getId();
+            p.removeFromWorld();
+            alives[id - 1] = false;
+        });
 
-        onCollisionCollectible(PLAYER, COIN, c -> gameOver());
+        onCollision(PLAYER, COIN, (p, c) -> {
+            var id = p.getComponent(IDComponent.class).getId();
+            c.removeFromWorld();
+            onCoinPickup(id);
+        });
+
+        // 玩家之间碰撞
+        onCollision(PLAYER, PLAYER, (p1, p2) -> {
+            var id1 = p1.getComponent(IDComponent.class).getId();
+            var id2 = p2.getComponent(IDComponent.class).getId();
+            var s1 = scores[id1 - 1];
+            var s2 = scores[id2 - 1];
+            if (s1 < s2) {
+                p1.removeFromWorld();
+                alives[id1 - 1] = false;
+            } else if (s1 > s2) {
+                p2.removeFromWorld();
+                alives[id2 - 1] = false;
+            }
+        });
+
     }
 
     @Override
@@ -270,31 +330,47 @@ public class App extends GameApplication {
         getGameScene().addUI(ui);
     }
 
-    boolean requestNewGame = false;
+    boolean gameOver = false;
 
     @Override
     protected void onUpdate(double tpf) {
-        // TODO: 添加网络同步逻辑
-        if (requestNewGame) {
-            requestNewGame = false;
-            getGameController().startNewGame();
+        // 检查当前存活的玩家数量
+        var totalAlives = 0;
+        for (int i = 0; i < 4; i++) {
+            if (alives[i])
+                totalAlives++;
         }
-    }
-
-    // TODO: 时间为0时结束游戏并计算胜利玩家
-    private void onTimeOut() {
+        // 玩家仅剩1位或全部死亡则游戏结束
+        if (totalAlives <= 1)
+            gameOver();
+        
+        // TODO: 添加网络同步逻辑
         
     }
 
-    // TODO: 显示游戏统计结果
+    // 游戏结束的几种情况：
+    // 1. 所有硬币都被吃完
+    // 2. 只有一个玩家存活
+    // 3. 时间耗尽
     private void gameOver() {
-
+        // TODO: 积分完善积分方法
+        // 检查存活玩家
+        
+        // 找出最大分数
+        int winner = 0, maxScore = 0;
+        for (int i = 0; i < 4; i++)
+            if (scores[i] > maxScore) {
+                maxScore = scores[i];
+                winner = i + 1;
+            }
+        getDialogService().showMessageBox(String.format("Player %d wins! Press OK to exit.", winner), getGameController()::exit);
     }
 
-    public void onCoinPickup() {
+    public void onCoinPickup(int id) {
         inc("coins", -1);
-        inc("socre", +50);
 
+        scores[id - 1] += 50;
+        
         if (geti("coins") == 0) {
             gameOver();
         }

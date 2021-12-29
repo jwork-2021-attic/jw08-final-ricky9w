@@ -1,7 +1,6 @@
 package com.ricky;
 
 public enum PacType {
-    PLAYER1, PLAYER2, PLAYER3, PLAYER4,
     ENEMY, BLOCK, COIN, PLAYER
     
     // FIXME

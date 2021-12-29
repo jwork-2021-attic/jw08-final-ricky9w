@@ -4,6 +4,7 @@ import com.almasb.fxgl.ui.ProgressBar;
 import com.almasb.fxgl.ui.UIController;
 
 import javafx.fxml.FXML;
+import javafx.scene.control.Label;
 import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
 import static com.almasb.fxgl.dsl.FXGL.*;
@@ -17,7 +18,17 @@ public class PacUIController implements UIController {
 
     private ProgressBar timeBar;
 
+    @FXML
+    private Label labelScore1;
+
+    @FXML
+    private Label labelScore2;
     
+    @FXML
+    private Label labelScore3;
+
+    @FXML
+    private Label labelScore4;
 
     @Override
     public void init() {
@@ -33,7 +44,9 @@ public class PacUIController implements UIController {
         timeBar.setCurrentValue(TIME_PER_LEVEL);
         timeBar.currentValueProperty().bind(getip("time"));
 
-        // TODO: 显示其他信息
+        // FIXME
+        // 1. 将分数转变为使用property存储
+        // 2. 添加信息显示
         
         
         root.getChildren().addAll(timeBar);
