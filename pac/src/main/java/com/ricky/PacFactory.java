@@ -17,15 +17,9 @@ import javafx.geometry.Point2D;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.util.Duration;
-import kotlin.ExtensionFunctionType;
-import kotlin.random.Random;
 
 import java.util.Map;
-import java.util.concurrent.LinkedBlockingDeque;
 import java.util.function.Supplier;
-
-import javax.sound.midi.Receiver;
-import javax.swing.plaf.TextUI;
 
 import static com.almasb.fxgl.dsl.FXGL.*;
 import static com.almasb.fxgl.dsl.FXGL.entityBuilder;
@@ -38,14 +32,13 @@ import com.ricky.components.ai.DelayChaseComponent;
 
 public class PacFactory implements EntityFactory {
     
-    // TODO: 细化texture等信息
     @Spawns("1")
     public Entity newBlock(SpawnData data) {
         var rect = new Rectangle(38, 38, Color.BLACK);
         rect.setArcWidth(25);
         rect.setArcHeight(25);
         rect.setStrokeWidth(1);
-        rect.setStroke(Color.BLUE);
+        rect.setStroke(Color.GRAY);
 
         return entityBuilder(data)
                 .type(BLOCK)
@@ -88,7 +81,6 @@ public class PacFactory implements EntityFactory {
                 .build();
     }
 
-    // TODO: 设置敌人移动操控
     private Supplier<Component> aiComponents = new Supplier<>() {
         private Map<Integer, Supplier<Component>> components = Map.of(
             0, () -> new DelayChaseComponent().withDelay(),
@@ -120,7 +112,5 @@ public class PacFactory implements EntityFactory {
                 .with(aiComponents.get())
                 .build();
     }
-
-
 
 }
