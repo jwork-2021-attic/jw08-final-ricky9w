@@ -223,6 +223,11 @@ public class App extends GameApplication {
         vars.put("coins", 0);
         // 初始化时间信息
         vars.put("time", TIME_PER_LEVEL);
+        // 初始化玩家得分信息
+        vars.put("score1", 0);
+        vars.put("score2", 0);
+        vars.put("score3", 0);
+        vars.put("score4", 0);
         // 初始化玩家信息
         for (int i = 0; i < 4; i++) {
             scores[i] = 0;
@@ -348,6 +353,12 @@ public class App extends GameApplication {
         
     }
 
+    private void initNetWorking() {
+        if (IS_SERVER) {
+            
+        }
+    }
+
     // 游戏结束的几种情况：
     // 1. 所有硬币都被吃完
     // 2. 只有一个玩家存活
@@ -370,6 +381,20 @@ public class App extends GameApplication {
         inc("coins", -1);
 
         scores[id - 1] += 50;
+        switch (id) {
+            case 1:
+                inc("score1", 50);
+                break;
+            case 2:
+                inc("score2", 50);
+                break;
+            case 3:
+                inc("score3", 50);
+                break;
+            case 4:
+                inc("score4", 50);
+                break;
+        }
         
         if (geti("coins") == 0) {
             gameOver();

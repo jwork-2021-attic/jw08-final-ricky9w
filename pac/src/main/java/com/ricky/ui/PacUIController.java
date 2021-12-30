@@ -47,7 +47,10 @@ public class PacUIController implements UIController {
         // FIXME
         // 1. 将分数转变为使用property存储
         // 2. 添加信息显示
-        
+        labelScore1.textProperty().bind(getip("score1").asString("Score1: %d"));
+        labelScore2.textProperty().bind(getip("score2").asString("Score2: %d"));
+        labelScore3.textProperty().bind(getip("score3").asString("Score3: %d"));
+        labelScore4.textProperty().bind(getip("score4").asString("Score4: %d"));
         
         root.getChildren().addAll(timeBar);
     }

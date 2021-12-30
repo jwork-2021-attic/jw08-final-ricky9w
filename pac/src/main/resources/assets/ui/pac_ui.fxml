@@ -14,7 +14,10 @@
 
     <Rectangle fill="black" width="80" height="840" />
 
-    <Label fx:id="labelScore" translateX="10" translateY="790" textFill="white" />
+    <Label fx:id="labelScore1" translateX="10" translateY="600" textFill="white" />
+    <Label fx:id="labelScore2" translateX="10" translateY="640" textFill="white" />
+    <Label fx:id="labelScore3" translateX="10" translateY="680" textFill="white" />
+    <Label fx:id="labelScore4" translateX="10" translateY="720" textFill="white" />
 
     <Label fx:id="labelTeleport" translateX="10" translateY="500" textFill="white" />
 
