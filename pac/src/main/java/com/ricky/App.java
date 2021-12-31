@@ -11,18 +11,27 @@ import com.almasb.fxgl.entity.SpawnData;
 import com.almasb.fxgl.entity.components.IDComponent;
 import com.almasb.fxgl.entity.level.Level;
 import com.almasb.fxgl.entity.level.text.TextLevelLoader;
+import com.almasb.fxgl.event.EventBus;
+import com.almasb.fxgl.input.Input;
 import com.almasb.fxgl.input.UserAction;
 import com.almasb.fxgl.net.BundleTCPMessageReader;
+import com.almasb.fxgl.net.Client;
 import com.almasb.fxgl.pathfinding.CellState;
 import com.almasb.fxgl.pathfinding.astar.AStarGrid;
 import com.almasb.fxgl.profile.DataFile;
 import com.almasb.fxgl.profile.SaveLoadHandler;
 import com.almasb.fxgl.ui.UI;
+import com.fasterxml.jackson.databind.util.EnumValues;
 import com.ricky.components.PlayerComponent;
 import com.ricky.ui.PacUIController;
 import com.ricky.utils.PosData;
 import com.almasb.fxgl.core.collection.Array;
 import com.almasb.fxgl.core.serialization.Bundle;
+import com.almasb.fxgl.multiplayer.MultiplayerService;
+import com.almasb.fxgl.multiplayer.NetworkComponent;
+import com.almasb.fxgl.multiplayer.ReplicationEvent;
+import com.almasb.fxgl.net.Connection;
+import com.almasb.fxgl.net.Server;
 import java.util.EnumSet;
 
 import javafx.geometry.Point2D;
@@ -44,6 +53,7 @@ import static com.ricky.Config.*;
 import static com.ricky.PacType.*;
 
 import java.net.Socket;
+import java.sql.ClientInfoStatus;
 import java.sql.Time;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -60,19 +70,14 @@ public class App extends GameApplication {
     protected void initSettings(GameSettings settings) {
         settings.setMainMenuEnabled(true);
         settings.setEnabledMenuItems(EnumSet.allOf(MenuItem.class));
-        // 显示保存和加载选项
-        // settings.setEnabledMenuItems(EnumSet.of(MenuItem.SAVE_LOAD));
-
+        
+        settings.addEngineService(MultiplayerService.class);
 
         settings.setWidth(MAP_SIZE * BLOCK_SIZE + UI_SIZE * 2);
         settings.setHeight(MAP_SIZE * BLOCK_SIZE + 60);
         settings.setTitle("M-Pac-Man");
         settings.setVersion("1.0");
         settings.setManualResizeEnabled(false);
-    }
-
-    private Entity getPlayer() {
-        return getGameWorld().getEntityByID("player", CLIENT_ID).get();
     }
 
     private PlayerComponent getPlayerComponent() {
@@ -83,6 +88,21 @@ public class App extends GameApplication {
             
         return player.get().getComponent(PlayerComponent.class);
     }
+
+    private PlayerComponent getPlayerComponentByID(int id) {
+        var player = getGameWorld().getEntityByID("player", id);
+
+        if (player.isEmpty())
+            return null;
+
+        return player.get().getComponent(PlayerComponent.class);
+    }
+
+    // 网络通信
+    private Server<Bundle> server;
+    private Connection<Bundle>[] connections;
+
+    private Input[] clienInputs = new Input[5];
 
     @Override
     protected void initInput() {
@@ -119,20 +139,34 @@ public class App extends GameApplication {
             }
         }, KeyCode.D);
 
-        // 保存和加载游戏
-        getInput().addAction(new UserAction("Save") {
-            @Override
-            protected void onAction() {
-                getSaveLoadService().saveAndWriteTask("save.sav").run();
-            }
-        }, KeyCode.U);
-
-        getInput().addAction(new UserAction("Load") {
-            @Override
-            protected void onAction() {
-                getSaveLoadService().readAndLoadTask("save.sav").run();
-            }
-        }, KeyCode.L);
+        for (int i = 1; i <= 4; i++) {
+            clienInputs[i] = new Input();
+            final int id = i + 1;
+            // 绑定客户端输入
+            onKeyBuilder(clienInputs[i], KeyCode.W)
+                    .onAction(() -> {
+                        if (getPlayerComponentByID(id) != null) 
+                            getPlayerComponentByID(id).up();
+                        // TODO: 删除输出
+                        System.out.println("client key pressed");
+                    });
+            onKeyBuilder(clienInputs[i], KeyCode.S)
+                    .onAction(() -> { 
+                        if (getPlayerComponentByID(id) != null) 
+                            getPlayerComponentByID(id).down();
+                     });
+            onKeyBuilder(clienInputs[i], KeyCode.A)
+                    .onAction(() -> { 
+                        if (getPlayerComponentByID(id) != null) 
+                            getPlayerComponentByID(id).left();
+                     });
+            onKeyBuilder(clienInputs[i], KeyCode.D)
+                    .onAction(() -> { 
+                        if (getPlayerComponentByID(id) != null) 
+                            getPlayerComponentByID(id).right();
+                     });
+            
+        }
     }
 
     @Override
@@ -208,6 +242,10 @@ public class App extends GameApplication {
                 
                 scores = ((Integer[])bundle.get("scores")).clone();
                 alives = ((Boolean[])bundle.get("alives")).clone();
+                set("score1", scores[0]);
+                set("score2", scores[1]);
+                set("score3", scores[2]);
+                set("score4", scores[3]);
 
             }
         });
@@ -235,6 +273,26 @@ public class App extends GameApplication {
         }
     }
 
+    private void doInitWork() {
+        // 初始地图
+        Level origin = getAssetLoader().loadLevel("origin.txt", new TextLevelLoader(40, 40, ' '));
+        getGameWorld().setLevel(origin);
+
+        // 生成四个玩家
+        for (int i = 1; i <= 4; i++) {
+            SpawnData pData = new SpawnData(SPAWN_PLAYERS[i - 1]);
+            pData.put("name", "player");
+            pData.put("id", i);
+            getGameWorld().spawn("P", pData);
+        }
+
+        // 生成四个敌人
+        for (int i = 1; i <= 4; i++) {
+            SpawnData pData = new SpawnData(SPAWN_ENEMIES[i - 1]);
+            getGameWorld().spawn("E", pData);
+        }
+    }
+
 
     // 判断是否是重新加载游戏
     boolean isReload = false;
@@ -245,33 +303,63 @@ public class App extends GameApplication {
 
         getGameWorld().addEntityFactory(new PacFactory());
 
-        if (!isReload) { // 重新生成游戏
-
-            // 初始地图
-            Level origin = getAssetLoader().loadLevel("origin.txt", new TextLevelLoader(40, 40, ' '));
-            getGameWorld().setLevel(origin);
-
-            // 生成四个玩家
-            for (int i = 1; i <= 4; i++) {
-                SpawnData pData = new SpawnData(SPAWN_PLAYERS[i - 1]);
-                pData.put("name", "player");
-                pData.put("id", i);
-                getGameWorld().spawn("P", pData);
-            }
-
-            // 生成四个敌人
-            for (int i = 1; i <= 4; i++) {
-                SpawnData pData = new SpawnData(SPAWN_ENEMIES[i - 1]);
-                getGameWorld().spawn("E", pData);
-            }
-
+        /* if (!isReload) { // 重新生成游戏
+            doInitWork();
         } else { // 加载游戏, 仅加载地图模块, 其他实体在 onLoad() 方法中加载
             Level reload = getAssetLoader().loadLevel("reload.txt", new TextLevelLoader(40, 40, ' '));
             getGameWorld().setLevel(reload);
         }
-        isReload = true;
+        isReload = true; */
 
+        if (IS_SERVER) {
 
+            server = getNetService().newTCPServer(55555);
+            server.setOnConnected(conn -> {
+                getExecutor().startAsyncFX(() -> {
+
+                    // TODO: 生成基于网络同步的entity
+                    Level origin = getAssetLoader().loadLevel("origin.txt", new TextLevelLoader(40, 40, ' '));
+                    getGameWorld().setLevel(origin);
+                    
+                    for (int i = 1; i <= 4; i++) {
+                        SpawnData pData = new SpawnData(SPAWN_PLAYERS[i - 1]);
+                        pData.put("name", "player");
+                        pData.put("id", i);
+                        var player = spawn("P", pData);
+                        getMPService().spawn(conn, player, "P");
+
+                        SpawnData eData = new SpawnData(SPAWN_ENEMIES[i - 1]);
+                        var enemy = spawn("E", eData);
+                        getMPService().spawn(conn, enemy, "E");
+                    }
+
+                    for (int i = 1; i <= 4; i++)
+                        getMPService().addInputReplicationReceiver(conn, clienInputs[i]);
+                    getMPService().addPropertyReplicationSender(conn, getWorldProperties());
+
+                });
+            });
+
+            // doInitWork();
+
+            server.startAsync();
+
+            run(() -> inc("time", -1), Duration.seconds(1));
+        } else {
+
+            var client = getNetService().newTCPClient("localhost", 55555);
+            client.setOnConnected(conn -> {
+                getMPService().addEntityReplicationReceiver(conn, getGameWorld());
+                getMPService().addInputReplicationReceiver(conn, getInput());
+                getMPService().addPropertyReplicationReceiver(conn, getWorldProperties());
+            });
+
+            client.connectAsync();
+
+            getInput().setProcessInput(false);
+        }
+
+    
         AStarGrid grid = AStarGrid.fromWorld(getGameWorld(), MAP_SIZE, MAP_SIZE, BLOCK_SIZE, BLOCK_SIZE, (type) -> {
             if (type == BLOCK)
                 return CellState.NOT_WALKABLE;
@@ -282,9 +370,6 @@ public class App extends GameApplication {
 
         // coin设置为所有硬币总数
         set("coins", getGameWorld().getEntitiesByType(COIN).size());
-
-        // 计时器
-        run(() -> inc("time", -1), Duration.seconds(1));
 
         
         getWorldProperties().<Integer>addListener("time", (old, now) -> {
@@ -298,32 +383,38 @@ public class App extends GameApplication {
     // 初始化物理引擎
     @Override
     protected void initPhysics() {
-        onCollision(PLAYER, ENEMY, (p, e) -> {
-            var id = p.getComponent(IDComponent.class).getId();
-            p.removeFromWorld();
-            alives[id - 1] = false;
-        });
 
-        onCollision(PLAYER, COIN, (p, c) -> {
-            var id = p.getComponent(IDComponent.class).getId();
-            c.removeFromWorld();
-            onCoinPickup(id);
-        });
+        if (IS_SERVER) {
 
-        // 玩家之间碰撞
-        onCollision(PLAYER, PLAYER, (p1, p2) -> {
-            var id1 = p1.getComponent(IDComponent.class).getId();
-            var id2 = p2.getComponent(IDComponent.class).getId();
-            var s1 = scores[id1 - 1];
-            var s2 = scores[id2 - 1];
-            if (s1 < s2) {
-                p1.removeFromWorld();
-                alives[id1 - 1] = false;
-            } else if (s1 > s2) {
-                p2.removeFromWorld();
-                alives[id2 - 1] = false;
-            }
-        });
+            // FIXME: 玩家和怪物碰撞逻辑
+            /* onCollision(PLAYER, ENEMY, (p, e) -> {
+                var id = p.getComponent(IDComponent.class).getId();
+                p.removeFromWorld();
+                alives[id - 1] = false;
+            }); */
+
+            onCollision(PLAYER, COIN, (p, c) -> {
+                var id = p.getComponent(IDComponent.class).getId();
+                c.removeFromWorld();
+                onCoinPickup(id);
+            });
+
+            // 玩家之间碰撞
+            onCollision(PLAYER, PLAYER, (p1, p2) -> {
+                var id1 = p1.getComponent(IDComponent.class).getId();
+                var id2 = p2.getComponent(IDComponent.class).getId();
+                var s1 = scores[id1 - 1];
+                var s2 = scores[id2 - 1];
+                if (s1 < s2) {
+                    p1.removeFromWorld();
+                    alives[id1 - 1] = false;
+                } else if (s1 > s2) {
+                    p2.removeFromWorld();
+                    alives[id2 - 1] = false;
+                }
+            });
+
+        }
 
     }
 
@@ -350,13 +441,14 @@ public class App extends GameApplication {
             gameOver();
         
         // TODO: 添加网络同步逻辑
-        
-    }
-
-    private void initNetWorking() {
-        if (IS_SERVER) {
-            
+        for (int i = 0; i < 4; i++) {
+            if (clienInputs[i] != null) {
+                clienInputs[i].update(tpf);
+            }
         }
+
+        
+        
     }
 
     // 游戏结束的几种情况：
@@ -369,10 +461,10 @@ public class App extends GameApplication {
         
         // 找出最大分数
         int winner = 0, maxScore = 0;
-        for (int i = 0; i < 4; i++)
-            if (scores[i] > maxScore) {
-                maxScore = scores[i];
-                winner = i + 1;
+        for (int i = 1; i <= 4; i++) 
+            if (geti(String.format("score%d", i)) > maxScore) {
+                maxScore = geti(String.format("score%d", i));
+                winner = i;
             }
         getDialogService().showMessageBox(String.format("Player %d wins! Press OK to exit.", winner), getGameController()::exit);
     }
@@ -399,6 +491,10 @@ public class App extends GameApplication {
         if (geti("coins") == 0) {
             gameOver();
         }
+    }
+
+    private MultiplayerService getMPService() {
+        return getService(MultiplayerService.class);
     }
 
 

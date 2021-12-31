@@ -14,6 +14,7 @@ import com.almasb.fxgl.pathfinding.astar.AStarMoveComponent;
 import com.almasb.fxgl.physics.BoundingShape;
 import com.almasb.fxgl.physics.HitBox;
 import com.almasb.fxgl.texture.AnimatedTexture;
+import com.almasb.fxgl.multiplayer.NetworkComponent;
 import javafx.geometry.Point2D;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
@@ -45,6 +46,7 @@ public class PacFactory implements EntityFactory {
                 .type(BLOCK)
                 .viewWithBBox(rect)
                 .zIndex(-1)
+                .with(new NetworkComponent())
                 .build();
     }
 
@@ -62,24 +64,30 @@ public class PacFactory implements EntityFactory {
                 .collidable()
                 .with(new CellMoveComponent(BLOCK_SIZE, BLOCK_SIZE, 50))
                 .scale(0.5, 0.5)
+                .with(new NetworkComponent())
                 .build();
     }
 
     @Spawns("P")
     public Entity newPlayer(SpawnData data) {
-        AnimatedTexture view = texture("player.png").toAnimatedTexture(2, Duration.seconds(0.33));
+        //AnimatedTexture view = texture("player.png").toAnimatedTexture(2, Duration.seconds(0.33));
+
+        String name = data.hasKey("name") ? data.get("name") : "netPlayer";
+        int id = data.hasKey("id") ? data.get("id") : -1;
 
         return entityBuilder(data)
                 .type(PLAYER)
                 .bbox(new HitBox(new Point2D(4, 4), BoundingShape.box(32, 32)))
                 .anchorFromCenter()
-                .view(view.loop())
+                // .view(view.loop())
+                .viewWithBBox(texture(String.format("p%d.png", id)))
                 .with(new CollidableComponent(true))
-                .with(new CellMoveComponent(BLOCK_SIZE, BLOCK_SIZE, 200).allowRotation(true))
+                .with(new CellMoveComponent(BLOCK_SIZE, BLOCK_SIZE, 200).allowRotation(false))
                 .with(new AStarMoveComponent(new LazyValue<>(() -> geto("grid"))))
                 .with(new PlayerComponent())
                 .rotationOrigin(35 / 2.0, 40 / 2.0)
-                .with(new IDComponent(data.get("name"), data.get("id")))
+                .with(new IDComponent(name, id))
+                .with(new NetworkComponent())
                 .build();
     }
 
@@ -112,6 +120,7 @@ public class PacFactory implements EntityFactory {
                 .with(new CellMoveComponent(BLOCK_SIZE, BLOCK_SIZE, 125))
                 .with(new AStarMoveComponent(new LazyValue<>(() -> geto("grid"))))
                 .with(aiComponents.get())
+                .with(new NetworkComponent())
                 .build();
     }
 

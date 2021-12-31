@@ -27,8 +27,12 @@ public class Config {
     };
 
     // FIXME: 设定玩家ID和服务器配置
-    public static final int CLIENT_ID = 1;
+/*     public static final int CLIENT_ID = 1;
     
-    public static final boolean IS_SERVER = true;
+    public static final boolean IS_SERVER = true; */
+
+    public static final int CLIENT_ID = 2;
+
+    public static final boolean IS_SERVER = false;
     
 }
