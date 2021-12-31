@@ -44,9 +44,6 @@ public class PacUIController implements UIController {
         timeBar.setCurrentValue(TIME_PER_LEVEL);
         timeBar.currentValueProperty().bind(getip("time"));
 
-        // FIXME
-        // 1. 将分数转变为使用property存储
-        // 2. 添加信息显示
         labelScore1.textProperty().bind(getip("score1").asString("Score1: %d"));
         labelScore2.textProperty().bind(getip("score2").asString("Score2: %d"));
         labelScore3.textProperty().bind(getip("score3").asString("Score3: %d"));

@@ -31,6 +31,7 @@ import static com.ricky.PacType.*;
 import static com.ricky.Config.*;
 import com.ricky.components.PlayerComponent;
 import com.ricky.components.ai.DelayChaseComponent;
+import com.ricky.components.ScoreComponent;
 
 public class PacFactory implements EntityFactory {
     
@@ -72,22 +73,19 @@ public class PacFactory implements EntityFactory {
     public Entity newPlayer(SpawnData data) {
         //AnimatedTexture view = texture("player.png").toAnimatedTexture(2, Duration.seconds(0.33));
 
-        String name = data.hasKey("name") ? data.get("name") : "netPlayer";
-        int id = data.hasKey("id") ? data.get("id") : -1;
-
         return entityBuilder(data)
                 .type(PLAYER)
                 .bbox(new HitBox(new Point2D(4, 4), BoundingShape.box(32, 32)))
                 .anchorFromCenter()
                 // .view(view.loop())
-                .viewWithBBox(texture(String.format("p%d.png", id)))
+                .viewWithBBox(texture("p1.png", 36, 36))
                 .with(new CollidableComponent(true))
                 .with(new CellMoveComponent(BLOCK_SIZE, BLOCK_SIZE, 200).allowRotation(false))
                 .with(new AStarMoveComponent(new LazyValue<>(() -> geto("grid"))))
                 .with(new PlayerComponent())
                 .rotationOrigin(35 / 2.0, 40 / 2.0)
-                .with(new IDComponent(name, id))
                 .with(new NetworkComponent())
+                .with(new ScoreComponent())
                 .build();
     }
 

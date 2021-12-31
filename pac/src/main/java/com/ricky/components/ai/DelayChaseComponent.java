@@ -7,6 +7,8 @@ import static com.almasb.fxgl.dsl.FXGL.*;
 
 import static com.ricky.PacType.*;
 
+import java.util.Random;
+
 
 @Required(AStarMoveComponent.class)
 public class DelayChaseComponent extends Component {
@@ -27,7 +29,10 @@ public class DelayChaseComponent extends Component {
     }
 
     private void move() {
-        var player = getGameWorld().getSingleton(PLAYER);
+        Random rand = new Random();
+
+        var players = getGameWorld().getEntitiesByType(PLAYER);
+        var player = players.get(rand.nextInt(players.size()));
         
         int x = player.call("getCellX");
         int y = player.call("getCellY");

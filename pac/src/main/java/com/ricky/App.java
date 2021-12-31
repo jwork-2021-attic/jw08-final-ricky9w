@@ -7,6 +7,7 @@ import com.almasb.fxgl.app.scene.FXGLMenu;
 import com.almasb.fxgl.app.scene.SceneFactory;
 import com.almasb.fxgl.app.scene.FXGLDefaultMenu.MenuContent;
 import com.almasb.fxgl.entity.Entity;
+import com.almasb.fxgl.entity.GameWorld;
 import com.almasb.fxgl.entity.SpawnData;
 import com.almasb.fxgl.entity.components.IDComponent;
 import com.almasb.fxgl.entity.level.Level;
@@ -21,18 +22,24 @@ import com.almasb.fxgl.pathfinding.astar.AStarGrid;
 import com.almasb.fxgl.profile.DataFile;
 import com.almasb.fxgl.profile.SaveLoadHandler;
 import com.almasb.fxgl.ui.UI;
+import com.fasterxml.jackson.annotation.ObjectIdGenerators.StringIdGenerator;
+import com.fasterxml.jackson.databind.deser.impl.PropertyValue;
+import com.fasterxml.jackson.databind.ser.std.InetAddressSerializer;
 import com.fasterxml.jackson.databind.util.EnumValues;
 import com.ricky.components.PlayerComponent;
+import com.ricky.components.ScoreComponent;
 import com.ricky.ui.PacUIController;
 import com.ricky.utils.PosData;
 import com.almasb.fxgl.core.collection.Array;
 import com.almasb.fxgl.core.serialization.Bundle;
+import com.almasb.fxgl.dsl.KeyInputBuilder;
 import com.almasb.fxgl.multiplayer.MultiplayerService;
 import com.almasb.fxgl.multiplayer.NetworkComponent;
 import com.almasb.fxgl.multiplayer.ReplicationEvent;
 import com.almasb.fxgl.net.Connection;
 import com.almasb.fxgl.net.Server;
 import java.util.EnumSet;
+import java.util.HashMap;
 
 import javafx.geometry.Point2D;
 import javafx.print.PrintColor;
@@ -53,6 +60,7 @@ import static com.ricky.Config.*;
 import static com.ricky.PacType.*;
 
 import java.net.Socket;
+import java.security.KeyStore.Entry;
 import java.sql.ClientInfoStatus;
 import java.sql.Time;
 import java.util.ArrayList;
@@ -60,18 +68,30 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.LinkedBlockingDeque;
 
-import javax.sql.ConnectionPoolDataSource;
+import javax.lang.model.util.ElementScanner6;
+import javax.security.auth.login.FailedLoginException;
+import javax.swing.plaf.metal.MetalBorders.PaletteBorder;
+import javax.xml.datatype.DatatypeFactory;
 
-
-public class App extends GameApplication {
+public class App extends GameApplication{
 
     @Override
+    protected void initUI() {
+        UI ui = getAssetLoader().loadUI("pac_ui.fxml", new PacUIController());
+        ui.getRoot().setTranslateX(MAP_SIZE * BLOCK_SIZE);
+
+        getGameScene().addUI(ui);
+    }
+    
+    @Override
     protected void initSettings(GameSettings settings) {
-        settings.setMainMenuEnabled(true);
-        settings.setEnabledMenuItems(EnumSet.allOf(MenuItem.class));
-        
+        // settings.setMainMenuEnabled(true);
+        // settings.setEnabledMenuItems(EnumSet.allOf(MenuItem.class));
+
         settings.addEngineService(MultiplayerService.class);
+
 
         settings.setWidth(MAP_SIZE * BLOCK_SIZE + UI_SIZE * 2);
         settings.setHeight(MAP_SIZE * BLOCK_SIZE + 60);
@@ -80,93 +100,80 @@ public class App extends GameApplication {
         settings.setManualResizeEnabled(false);
     }
 
-    private PlayerComponent getPlayerComponent() {
-        var player = getGameWorld().getEntityByID("player", CLIENT_ID);
-        
-        if (player.isEmpty())
-            return null;
-            
-        return player.get().getComponent(PlayerComponent.class);
-    }
-
-    private PlayerComponent getPlayerComponentByID(int id) {
-        var player = getGameWorld().getEntityByID("player", id);
-
-        if (player.isEmpty())
-            return null;
-
-        return player.get().getComponent(PlayerComponent.class);
-    }
-
-    // 网络通信
+    private Entity player1, player2, player3, player4;
+    
     private Server<Bundle> server;
-    private Connection<Bundle>[] connections;
+    
+    private Input cInput2 = new Input(), cInput3 = new Input(), cInput4 = new Input();
 
-    private Input[] clienInputs = new Input[5];
+    private Map<Integer, Pair<Entity, Input>> ctrlMap = new HashMap<>();
 
     @Override
     protected void initInput() {
-        // 上下左右移动处理
+        
+        ctrlMap.put(1, new Pair<Entity, Input>(player2, cInput2));
+        ctrlMap.put(2, new Pair<Entity, Input>(player3, cInput3));
+        ctrlMap.put(3, new Pair<Entity, Input>(player4, cInput4));
+
+        // 初始化本地输入处理
         getInput().addAction(new UserAction("Up") {
             @Override
             protected void onAction() {
-                if (getPlayerComponent() != null)
-                    getPlayerComponent().up();
+                player1.getComponent(PlayerComponent.class).up();
             }
         }, KeyCode.W);
-
         getInput().addAction(new UserAction("Down") {
             @Override
             protected void onAction() {
-                if (getPlayerComponent() != null)
-                    getPlayerComponent().down();
+                player1.getComponent(PlayerComponent.class).down();
             }
         }, KeyCode.S);
-
         getInput().addAction(new UserAction("Left") {
             @Override
             protected void onAction() {
-                if (getPlayerComponent() != null)
-                    getPlayerComponent().left();
+                player1.getComponent(PlayerComponent.class).left();
             }
         }, KeyCode.A);
-
         getInput().addAction(new UserAction("Right") {
             @Override
             protected void onAction() {
-                if (getPlayerComponent() != null)
-                    getPlayerComponent().right();
+                player1.getComponent(PlayerComponent.class).right();
             }
         }, KeyCode.D);
 
-        for (int i = 1; i <= 4; i++) {
-            clienInputs[i] = new Input();
-            final int id = i + 1;
-            // 绑定客户端输入
-            onKeyBuilder(clienInputs[i], KeyCode.W)
-                    .onAction(() -> {
-                        if (getPlayerComponentByID(id) != null) 
-                            getPlayerComponentByID(id).up();
-                        // TODO: 删除输出
+        // 初始化客户端输入处理
+        for (Map.Entry<Integer, Pair<Entity, Input>> entry : ctrlMap.entrySet()) {
+            
+            onKeyBuilder(entry.getValue().getValue(), KeyCode.W)
+                    .onAction(() -> { 
+                        try {
+                            entry.getValue().getKey().getComponent(PlayerComponent.class).up();
+                            System.out.println(entry.getValue().getKey().getComponent(PlayerComponent.class));
+                        } catch (NullPointerException e) {}
+                        // TODO: delete debug output
                         System.out.println("client key pressed");
                     });
-            onKeyBuilder(clienInputs[i], KeyCode.S)
-                    .onAction(() -> { 
-                        if (getPlayerComponentByID(id) != null) 
-                            getPlayerComponentByID(id).down();
+            onKeyBuilder(entry.getValue().getValue(), KeyCode.S)
+                    .onAction(() -> {
+                        try {
+                            entry.getValue().getKey().getComponent(PlayerComponent.class).down();
+                        } catch (NullPointerException e) {}
                      });
-            onKeyBuilder(clienInputs[i], KeyCode.A)
+            onKeyBuilder(entry.getValue().getValue(), KeyCode.A)
                     .onAction(() -> { 
-                        if (getPlayerComponentByID(id) != null) 
-                            getPlayerComponentByID(id).left();
+                        try {
+                            entry.getValue().getKey().getComponent(PlayerComponent.class).left();
+                        } catch (NullPointerException e) {}
                      });
-            onKeyBuilder(clienInputs[i], KeyCode.D)
+
+            onKeyBuilder(entry.getValue().getValue(), KeyCode.D)
                     .onAction(() -> { 
-                        if (getPlayerComponentByID(id) != null) 
-                            getPlayerComponentByID(id).right();
+                        try {
+                            entry.getValue().getKey().getComponent(PlayerComponent.class).right();
+                        } catch (NullPointerException e) {}
                      });
-            
         }
+        
     }
 
     @Override
@@ -176,190 +183,83 @@ public class App extends GameApplication {
             public void onSave(DataFile data) {
 
                 var bundle = new Bundle("gameData");
-
                 PosData pos = new PosData();
 
-                // 保存所有硬币坐标
                 var coins = getGameWorld().getEntitiesByType(COIN);
-                for (var coin : coins) {
+                for (var coin : coins)
                     pos.coins.add(new Pair(coin.getX(), coin.getY()));
-                }
 
-                // 保存所有怪物坐标
                 var enemies = getGameWorld().getEntitiesByType(ENEMY);
-                for (var enemy : enemies) {
-                    pos.enemies.add(new Pair(enemy.getX(), enemy.getY()));
-                }
+                for (var enemy : enemies)
+                    pos.coins.add(new Pair(enemy.getX(), enemy.getY()));
 
-                // 保存所有玩家坐标
-                for (int i = 1; i <= 4; i++) {
-                    var player = getGameWorld().getEntityByID("player", i);
+                pos.player1 = new Pair(player1.getX(), player1.getY());
+                pos.player2 = new Pair(player1.getX(), player2.getY());
+                pos.player3 = new Pair(player1.getX(), player3.getY());
+                pos.player4 = new Pair(player1.getX(), player4.getY());
 
-                    if (!player.isEmpty()) {
-                        pos.players.put(i, new Pair(player.get().getX(), player.get().getY()));
-                    }
-                }
+                for (int i = 1; i <= 4; i++)
+                    bundle.put(String.format("score%d", i), geti(String.format("score%d", i)));
 
-                // 保存所有玩家得分和状态
-                bundle.put("scores", scores);
-                bundle.put("alives", alives);
-
-                // 保存其他信息
                 bundle.put("time", geti("time"));
 
                 bundle.put("pos", pos);
-                
-                data.putBundle(bundle);
 
+                data.putBundle(bundle);
             }
 
             @Override
             public void onLoad(DataFile data) {
-                var bundle = data.getBundle("gameData");
+                if (IS_SERVER) {
 
-                // 从 bundle 中取出数据
-                PosData pos = bundle.get("pos");
-                
-                // 恢复所有entity
-                for (var coinPos : pos.coins) {
-                    getGameWorld().spawn("0", new Point2D(coinPos.getKey(), coinPos.getValue()));
+                    var bundle = data.getBundle("gameData");
+                    PosData pos = bundle.get("pos");
+                    // 服务器端通过网络生成entity
+                    for (var coinPos : pos.coins) {
+                        var coin = spawn("0", new Point2D(coinPos.getKey(), coinPos.getValue()));
+                        spawnOnAllConnections(coin, "0");
+                    }
+                    
+                    for (var ePos : pos.enemies) {
+                        var enemy = spawn("E", new Point2D(ePos.getKey(), ePos.getValue()));
+                        spawnOnAllConnections(enemy, "E");
+                    }
+
+                    player1 = spawn("P", new Point2D(pos.player1.getKey(), pos.player1.getValue()));
+                    player2 = spawn("P", new Point2D(pos.player2.getKey(), pos.player2.getValue()));
+                    player3 = spawn("P", new Point2D(pos.player3.getKey(), pos.player3.getValue()));
+                    player4 = spawn("P", new Point2D(pos.player4.getKey(), pos.player4.getValue()));
+
+                    spawnOnAllConnections(player1, "P");
+                    spawnOnAllConnections(player2, "P");
+                    spawnOnAllConnections(player3, "P");
+                    spawnOnAllConnections(player4, "P");
+
+                    set("time", bundle.get("time"));
+                    for (int i = 1; i < 4; i++) 
+                        set(String.format("score%d", i), bundle.get(String.format("score%d", i)));
                 }
-                
-                for (var ePos : pos.enemies) {
-                    getGameWorld().spawn("E", ePos.getKey(), ePos.getValue());
-                }
-
-                for (var pPos : pos.players.entrySet()) {
-                    SpawnData pData = new SpawnData(new Point2D(pPos.getValue().getKey(), pPos.getValue().getValue()));
-                    pData.put("name", "player");
-                    pData.put("id", pPos.getKey());
-                    getGameWorld().spawn("P", pData);
-                }
-
-                // 恢复其他变量
-                set("time", bundle.get("time"));
-                set("coins", pos.coins.size());
-                
-                scores = ((Integer[])bundle.get("scores")).clone();
-                alives = ((Boolean[])bundle.get("alives")).clone();
-                set("score1", scores[0]);
-                set("score2", scores[1]);
-                set("score3", scores[2]);
-                set("score4", scores[3]);
-
             }
         });
     }
 
-    private Integer[] scores = new Integer[4];
-    private Boolean[] alives = new Boolean[4];
-
+    private void spawnOnAllConnections(Entity e, String name) {
+        for (var conn : server.getConnections())
+            getMPService().spawn(conn, e, name);
+    }
 
     @Override
     protected void initGameVars(Map<String, Object> vars) {
-        vars.put("score", 0);
-        vars.put("coins", 0);
-        // 初始化时间信息
         vars.put("time", TIME_PER_LEVEL);
-        // 初始化玩家得分信息
-        vars.put("score1", 0);
-        vars.put("score2", 0);
-        vars.put("score3", 0);
-        vars.put("score4", 0);
-        // 初始化玩家信息
-        for (int i = 0; i < 4; i++) {
-            scores[i] = 0;
-            alives[i] = true;   
-        }
+        for (int i = 1; i <= 4; i++)
+            vars.put(String.format("score%d", i), 0);
     }
 
-    private void doInitWork() {
-        // 初始地图
-        Level origin = getAssetLoader().loadLevel("origin.txt", new TextLevelLoader(40, 40, ' '));
-        getGameWorld().setLevel(origin);
-
-        // 生成四个玩家
-        for (int i = 1; i <= 4; i++) {
-            SpawnData pData = new SpawnData(SPAWN_PLAYERS[i - 1]);
-            pData.put("name", "player");
-            pData.put("id", i);
-            getGameWorld().spawn("P", pData);
-        }
-
-        // 生成四个敌人
-        for (int i = 1; i <= 4; i++) {
-            SpawnData pData = new SpawnData(SPAWN_ENEMIES[i - 1]);
-            getGameWorld().spawn("E", pData);
-        }
-    }
-
-
-    // 判断是否是重新加载游戏
     boolean isReload = false;
 
     @Override
     protected void initGame() {
-        getGameScene().setBackgroundColor(Color.BLACK);
 
-        getGameWorld().addEntityFactory(new PacFactory());
-
-        /* if (!isReload) { // 重新生成游戏
-            doInitWork();
-        } else { // 加载游戏, 仅加载地图模块, 其他实体在 onLoad() 方法中加载
-            Level reload = getAssetLoader().loadLevel("reload.txt", new TextLevelLoader(40, 40, ' '));
-            getGameWorld().setLevel(reload);
-        }
-        isReload = true; */
-
-        if (IS_SERVER) {
-
-            server = getNetService().newTCPServer(55555);
-            server.setOnConnected(conn -> {
-                getExecutor().startAsyncFX(() -> {
-
-                    // TODO: 生成基于网络同步的entity
-                    Level origin = getAssetLoader().loadLevel("origin.txt", new TextLevelLoader(40, 40, ' '));
-                    getGameWorld().setLevel(origin);
-                    
-                    for (int i = 1; i <= 4; i++) {
-                        SpawnData pData = new SpawnData(SPAWN_PLAYERS[i - 1]);
-                        pData.put("name", "player");
-                        pData.put("id", i);
-                        var player = spawn("P", pData);
-                        getMPService().spawn(conn, player, "P");
-
-                        SpawnData eData = new SpawnData(SPAWN_ENEMIES[i - 1]);
-                        var enemy = spawn("E", eData);
-                        getMPService().spawn(conn, enemy, "E");
-                    }
-
-                    for (int i = 1; i <= 4; i++)
-                        getMPService().addInputReplicationReceiver(conn, clienInputs[i]);
-                    getMPService().addPropertyReplicationSender(conn, getWorldProperties());
-
-                });
-            });
-
-            // doInitWork();
-
-            server.startAsync();
-
-            run(() -> inc("time", -1), Duration.seconds(1));
-        } else {
-
-            var client = getNetService().newTCPClient("localhost", 55555);
-            client.setOnConnected(conn -> {
-                getMPService().addEntityReplicationReceiver(conn, getGameWorld());
-                getMPService().addInputReplicationReceiver(conn, getInput());
-                getMPService().addPropertyReplicationReceiver(conn, getWorldProperties());
-            });
-
-            client.connectAsync();
-
-            getInput().setProcessInput(false);
-        }
-
-    
         AStarGrid grid = AStarGrid.fromWorld(getGameWorld(), MAP_SIZE, MAP_SIZE, BLOCK_SIZE, BLOCK_SIZE, (type) -> {
             if (type == BLOCK)
                 return CellState.NOT_WALKABLE;
@@ -368,139 +268,159 @@ public class App extends GameApplication {
 
         set("grid", grid);
 
-        // coin设置为所有硬币总数
-        set("coins", getGameWorld().getEntitiesByType(COIN).size());
+        getGameScene().setBackgroundColor(Color.BLACK);
 
-        
+        getGameWorld().addEntityFactory(new PacFactory());
+
+        if (IS_SERVER) {
+            server = getNetService().newTCPServer(55555);
+            server.setOnConnected(conn -> {
+
+                getExecutor().startAsyncFX(() -> {
+                    // FIXME: 添加检查连接数是否满4逻辑
+                    GameWorld toolWorld = new GameWorld();
+                    Level orign = getAssetLoader().loadLevel("origin.txt", new TextLevelLoader(40, 40, ' '));
+                    toolWorld.setLevel(orign);
+
+                    // 生成砖块
+                    for (var block : toolWorld.getEntitiesByType(BLOCK)) {
+                        var sBlock = spawn("1", new Point2D(block.getX(), block.getY()));
+                        getMPService().spawn(conn, sBlock, "1");
+                    }
+                    // 生成硬币
+                    for (var coin : toolWorld.getEntitiesByType(COIN)) {
+                        var sCoin = spawn("0", coin.getX(), coin.getY());
+                        getMPService().spawn(conn, sCoin, "0");
+                    }
+                    // 生成玩家
+                    player1 = spawn("P", SPAWN_PLAYERS[0]);
+                    getMPService().spawn(conn, player1, "P");
+                    player2 = spawn("P", SPAWN_PLAYERS[1]);
+                    getMPService().spawn(conn, player2, "P");
+                    player3 = spawn("P", SPAWN_PLAYERS[2]);
+                    getMPService().spawn(conn, player3, "P");
+                    player4 = spawn("P", SPAWN_PLAYERS[3]);
+                    getMPService().spawn(conn, player4, "P");
+                    // 生成怪物
+                    for (int i = 0; i < 4; i++) {
+                        var enemy = spawn("E", SPAWN_ENEMIES[i]);
+                        getMPService().spawn(conn, enemy, "E");
+                    }
+
+                    // 绑定客户端输入
+                    var connNum = conn.getConnectionNum();
+                    getMPService().addInputReplicationReceiver(conn, ctrlMap.get(connNum).getValue());
+
+                    // 设置property同步
+                    getMPService().addPropertyReplicationSender(conn, getWorldProperties());
+                });
+                
+
+                
+            });
+
+            server.startAsync();
+
+            run(() -> inc("time", -1), Duration.seconds(1));
+        } else {
+
+            var client = getNetService().newTCPClient("localhost", 55555);
+            client.setOnConnected(conn -> {
+
+                getMPService().addEntityReplicationReceiver(conn, getGameWorld());
+
+                getMPService().addInputReplicationSender(conn, getInput());
+
+                getMPService().addPropertyReplicationReceiver(conn, getWorldProperties());
+            });
+
+            client.connectAsync();
+
+            getInput().setProcessInput(false);
+        }
+
+        isReload = true;
+
         getWorldProperties().<Integer>addListener("time", (old, now) -> {
             if (now == 0) {
                 gameOver();
             }
         });
-
     }
 
-    // 初始化物理引擎
     @Override
     protected void initPhysics() {
-
         if (IS_SERVER) {
-
-            // FIXME: 玩家和怪物碰撞逻辑
+            // FIXME: 玩家和怪物碰撞
             /* onCollision(PLAYER, ENEMY, (p, e) -> {
-                var id = p.getComponent(IDComponent.class).getId();
                 p.removeFromWorld();
-                alives[id - 1] = false;
             }); */
 
+            // 玩家捡起硬币
             onCollision(PLAYER, COIN, (p, c) -> {
-                var id = p.getComponent(IDComponent.class).getId();
+                p.getComponent(ScoreComponent.class).inc(50);
                 c.removeFromWorld();
-                onCoinPickup(id);
             });
 
             // 玩家之间碰撞
             onCollision(PLAYER, PLAYER, (p1, p2) -> {
-                var id1 = p1.getComponent(IDComponent.class).getId();
-                var id2 = p2.getComponent(IDComponent.class).getId();
-                var s1 = scores[id1 - 1];
-                var s2 = scores[id2 - 1];
-                if (s1 < s2) {
+                int s1 = p1.getComponent(ScoreComponent.class).getScore(), s2 = p2.getComponent(ScoreComponent.class).getScore();
+                if (s1 < s2)
                     p1.removeFromWorld();
-                    alives[id1 - 1] = false;
-                } else if (s1 > s2) {
+                else if (s1 > s2)
                     p2.removeFromWorld();
-                    alives[id2 - 1] = false;
-                }
             });
-
         }
-
     }
-
-    @Override
-    protected void initUI() {
-        UI ui = getAssetLoader().loadUI("pac_ui.fxml", new PacUIController());
-        ui.getRoot().setTranslateX(MAP_SIZE * BLOCK_SIZE);
-
-        getGameScene().addUI(ui);
-    }
-
-    boolean gameOver = false;
 
     @Override
     protected void onUpdate(double tpf) {
-        // 检查当前存活的玩家数量
-        var totalAlives = 0;
-        for (int i = 0; i < 4; i++) {
-            if (alives[i])
-                totalAlives++;
-        }
-        // 玩家仅剩1位或全部死亡则游戏结束
-        if (totalAlives <= 1)
-            gameOver();
-        
-        // TODO: 添加网络同步逻辑
-        for (int i = 0; i < 4; i++) {
-            if (clienInputs[i] != null) {
-                clienInputs[i].update(tpf);
+        // 更新游戏全局存储的得分
+        if (player1 != null) {
+            try {
+                set("score1", player1.getComponent(ScoreComponent.class).getScore());
+                set("score2", player2.getComponent(ScoreComponent.class).getScore());
+                set("score3", player3.getComponent(ScoreComponent.class).getScore());
+                set("score4", player4.getComponent(ScoreComponent.class).getScore());
+            } catch (Exception e) {
+                // System.out.println(e);
             }
-        }
+            // 同步客户端输入
+            for (Map.Entry<Integer, Pair<Entity, Input>> entry : ctrlMap.entrySet())
+                entry.getValue().getValue().update(tpf);
 
-        
-        
+            // 判断是否游戏结束
+            if (getGameWorld().getEntitiesByType(PLAYER).size() <= 1 ||
+                getGameWorld().getEntitiesByType(COIN).size() == 0)
+                gameOver();
+        }
     }
 
-    // 游戏结束的几种情况：
-    // 1. 所有硬币都被吃完
-    // 2. 只有一个玩家存活
-    // 3. 时间耗尽
     private void gameOver() {
-        // TODO: 积分完善积分方法
-        // 检查存活玩家
-        
-        // 找出最大分数
-        int winner = 0, maxScore = 0;
-        for (int i = 1; i <= 4; i++) 
-            if (geti(String.format("score%d", i)) > maxScore) {
-                maxScore = geti(String.format("score%d", i));
+        // TODO: gameover
+        /* int winner = 0, maxScore = 0;
+        for (int i = 1; i <= 4; i++) {
+            int score = geti(String.format("score%d", i));
+            if (score >= maxScore) {
                 winner = i;
+                maxScore = score;
             }
-        getDialogService().showMessageBox(String.format("Player %d wins! Press OK to exit.", winner), getGameController()::exit);
-    }
-
-    public void onCoinPickup(int id) {
-        inc("coins", -1);
-
-        scores[id - 1] += 50;
-        switch (id) {
-            case 1:
-                inc("score1", 50);
-                break;
-            case 2:
-                inc("score2", 50);
-                break;
-            case 3:
-                inc("score3", 50);
-                break;
-            case 4:
-                inc("score4", 50);
-                break;
         }
-        
-        if (geti("coins") == 0) {
-            gameOver();
-        }
+        getDialogService().showMessageBox(String.format("Player %d wins! Press OK to exit.", winner), getGameController()::exit); */
     }
 
     private MultiplayerService getMPService() {
         return getService(MultiplayerService.class);
     }
 
-
-    public static void main( String[] args )
-    {
-        System.out.println( "Hello World!" );
+    public static void main(String args[]) {
+        if (args.length == 1) {
+            IS_SERVER = true;
+        }
+        else {
+            IS_SERVER = false;
+        }
         launch(args);
     }
+
 }

@@ -7,6 +7,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 
+import javafx.beans.binding.DoubleExpression;
+import javafx.geometry.Point2D;
 import javafx.util.Pair;
 
 public class PosData implements java.io.Serializable {
@@ -16,6 +18,8 @@ public class PosData implements java.io.Serializable {
     public Set<Pair<Double, Double>> enemies;
 
     public Map<Integer, Pair<Double, Double>> players;
+
+    public Pair<Double, Double> player1, player2, player3, player4;
 
 
     public PosData() {

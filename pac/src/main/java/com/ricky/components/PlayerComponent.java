@@ -32,7 +32,7 @@ public class PlayerComponent extends Component {
     public void right() {
         nextMoveDir = RIGHT;
     }
-
+    
     @Override
     public void onUpdate(double tpf) {
         var x = moveComponent.getCellX();

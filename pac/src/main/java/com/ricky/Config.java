@@ -25,14 +25,7 @@ public class Config {
         new Point2D(11 * BLOCK_SIZE, 8 * BLOCK_SIZE),
         new Point2D(10 * BLOCK_SIZE, 9 * BLOCK_SIZE)
     };
-
-    // FIXME: 设定玩家ID和服务器配置
-/*     public static final int CLIENT_ID = 1;
     
-    public static final boolean IS_SERVER = true; */
-
-    public static final int CLIENT_ID = 2;
-
-    public static final boolean IS_SERVER = false;
+    public static boolean IS_SERVER = true;
     
 }
