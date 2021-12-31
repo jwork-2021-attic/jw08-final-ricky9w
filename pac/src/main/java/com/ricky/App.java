@@ -26,6 +26,7 @@ import com.fasterxml.jackson.annotation.ObjectIdGenerators.StringIdGenerator;
 import com.fasterxml.jackson.databind.deser.impl.PropertyValue;
 import com.fasterxml.jackson.databind.ser.std.InetAddressSerializer;
 import com.fasterxml.jackson.databind.util.EnumValues;
+import com.ricky.components.Direction;
 import com.ricky.components.PlayerComponent;
 import com.ricky.components.ScoreComponent;
 import com.ricky.ui.PacUIController;
@@ -106,14 +107,36 @@ public class App extends GameApplication{
     
     private Input cInput2 = new Input(), cInput3 = new Input(), cInput4 = new Input();
 
-    private Map<Integer, Pair<Entity, Input>> ctrlMap = new HashMap<>();
+    // private Map<Integer, Pair<Entity, Input>> ctrlMap = new HashMap<>();
+
+    private PlayerComponent getPlayerComponent(Entity player) {
+        if (player.hasComponent(PlayerComponent.class))
+            return player.getComponent(PlayerComponent.class);
+        return null;
+    }
+
+    private void moveTowards(Entity player, Direction dir) {
+        PlayerComponent pc = getPlayerComponent(player);
+        if (pc != null) {
+            switch (dir) {
+                case UP:
+                    pc.up();
+                    break;
+                case DOWN:
+                    pc.down();
+                    break;
+                case LEFT:
+                    pc.left();
+                    break;
+                case RIGHT:
+                    pc.right();
+                    break;
+            }
+        }
+    }
 
     @Override
     protected void initInput() {
-        
-        ctrlMap.put(1, new Pair<Entity, Input>(player2, cInput2));
-        ctrlMap.put(2, new Pair<Entity, Input>(player3, cInput3));
-        ctrlMap.put(3, new Pair<Entity, Input>(player4, cInput4));
 
         // 初始化本地输入处理
         getInput().addAction(new UserAction("Up") {
@@ -140,39 +163,22 @@ public class App extends GameApplication{
                 player1.getComponent(PlayerComponent.class).right();
             }
         }, KeyCode.D);
-
+        
         // 初始化客户端输入处理
-        for (Map.Entry<Integer, Pair<Entity, Input>> entry : ctrlMap.entrySet()) {
-            
-            onKeyBuilder(entry.getValue().getValue(), KeyCode.W)
-                    .onAction(() -> { 
-                        try {
-                            entry.getValue().getKey().getComponent(PlayerComponent.class).up();
-                            System.out.println(entry.getValue().getKey().getComponent(PlayerComponent.class));
-                        } catch (NullPointerException e) {}
-                        // TODO: delete debug output
-                        System.out.println("client key pressed");
-                    });
-            onKeyBuilder(entry.getValue().getValue(), KeyCode.S)
-                    .onAction(() -> {
-                        try {
-                            entry.getValue().getKey().getComponent(PlayerComponent.class).down();
-                        } catch (NullPointerException e) {}
-                     });
-            onKeyBuilder(entry.getValue().getValue(), KeyCode.A)
-                    .onAction(() -> { 
-                        try {
-                            entry.getValue().getKey().getComponent(PlayerComponent.class).left();
-                        } catch (NullPointerException e) {}
-                     });
+        onKeyBuilder(cInput2, KeyCode.W).onAction(() -> { moveTowards(player2, Direction.UP); });
+        onKeyBuilder(cInput2, KeyCode.S).onAction(() -> { moveTowards(player2, Direction.DOWN); });
+        onKeyBuilder(cInput2, KeyCode.A).onAction(() -> { moveTowards(player2, Direction.LEFT); });
+        onKeyBuilder(cInput2, KeyCode.D).onAction(() -> { moveTowards(player2, Direction.RIGHT); });
+        
+        onKeyBuilder(cInput3, KeyCode.W).onAction(() -> { moveTowards(player3, Direction.UP); });
+        onKeyBuilder(cInput3, KeyCode.S).onAction(() -> { moveTowards(player3, Direction.DOWN); });
+        onKeyBuilder(cInput3, KeyCode.A).onAction(() -> { moveTowards(player3, Direction.LEFT); });
+        onKeyBuilder(cInput3, KeyCode.D).onAction(() -> { moveTowards(player3, Direction.RIGHT); });
 
-            onKeyBuilder(entry.getValue().getValue(), KeyCode.D)
-                    .onAction(() -> { 
-                        try {
-                            entry.getValue().getKey().getComponent(PlayerComponent.class).right();
-                        } catch (NullPointerException e) {}
-                     });
-        }
+        onKeyBuilder(cInput4, KeyCode.W).onAction(() -> { moveTowards(player4, Direction.UP); });
+        onKeyBuilder(cInput4, KeyCode.S).onAction(() -> { moveTowards(player4, Direction.DOWN); });
+        onKeyBuilder(cInput4, KeyCode.A).onAction(() -> { moveTowards(player4, Direction.LEFT); });
+        onKeyBuilder(cInput4, KeyCode.D).onAction(() -> { moveTowards(player4, Direction.RIGHT); });
         
     }
 
@@ -260,6 +266,13 @@ public class App extends GameApplication{
     @Override
     protected void initGame() {
 
+        getGameScene().setBackgroundColor(Color.BLACK);
+
+        getGameWorld().addEntityFactory(new PacFactory());
+
+        Level basic = getAssetLoader().loadLevel("reload.txt", new TextLevelLoader(40, 40, ' '));
+        getGameWorld().setLevel(basic);
+
         AStarGrid grid = AStarGrid.fromWorld(getGameWorld(), MAP_SIZE, MAP_SIZE, BLOCK_SIZE, BLOCK_SIZE, (type) -> {
             if (type == BLOCK)
                 return CellState.NOT_WALKABLE;
@@ -267,10 +280,6 @@ public class App extends GameApplication{
         });
 
         set("grid", grid);
-
-        getGameScene().setBackgroundColor(Color.BLACK);
-
-        getGameWorld().addEntityFactory(new PacFactory());
 
         if (IS_SERVER) {
             server = getNetService().newTCPServer(55555);
@@ -308,8 +317,17 @@ public class App extends GameApplication{
                     }
 
                     // 绑定客户端输入
-                    var connNum = conn.getConnectionNum();
-                    getMPService().addInputReplicationReceiver(conn, ctrlMap.get(connNum).getValue());
+                    switch (conn.getConnectionNum()) {
+                        case 1:
+                            getMPService().addInputReplicationReceiver(conn, cInput2);
+                            break;
+                        case 2:
+                            getMPService().addInputReplicationReceiver(conn, cInput3);
+                            break;
+                        case 3:
+                            getMPService().addInputReplicationReceiver(conn, cInput4);
+                            break;
+                    }
 
                     // 设置property同步
                     getMPService().addPropertyReplicationSender(conn, getWorldProperties());
@@ -386,8 +404,9 @@ public class App extends GameApplication{
                 // System.out.println(e);
             }
             // 同步客户端输入
-            for (Map.Entry<Integer, Pair<Entity, Input>> entry : ctrlMap.entrySet())
-                entry.getValue().getValue().update(tpf);
+            cInput2.update(tpf);
+            cInput3.update(tpf);
+            cInput4.update(tpf);
 
             // 判断是否游戏结束
             if (getGameWorld().getEntitiesByType(PLAYER).size() <= 1 ||
