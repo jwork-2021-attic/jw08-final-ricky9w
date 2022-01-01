@@ -34,6 +34,8 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 
+import javax.print.attribute.SetOfIntegerSyntax;
+import javax.print.attribute.standard.CopiesSupported;
 import javax.xml.stream.events.EndElement;
 
 import java.util.HashSet;
@@ -44,12 +46,14 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.paint.Color;
 import javafx.util.Duration;
 import javafx.util.Pair;
+import com.ricky.utils.Position2D;
 
 import static com.almasb.fxgl.dsl.FXGL.*;
 
 import static com.ricky.Config.*;
 import static com.ricky.PacType.*;
 import static com.ricky.network.ActionType.*;
+
 import com.ricky.network.ActionData;
 import java.util.Map;
 
@@ -173,71 +177,89 @@ public class App extends GameApplication{
         getSaveLoadService().addHandler(new SaveLoadHandler() {
             @Override
             public void onSave(DataFile data) {
+                if (IS_SERVER) {
+                    Bundle bundle = new Bundle("saveData");
+                    
+                    PosData pos = new PosData();
 
-                var bundle = new Bundle("gameData");
-                PosData pos = new PosData();
+                    for (var coin : getGameWorld().getEntitiesByType(COIN)) {
+                        pos.coins.put(getUUID(coin), new Position2D(coin.getX(), coin.getY()));
+                    }
 
-                var coins = getGameWorld().getEntitiesByType(COIN);
-                for (var coin : coins)
-                    pos.coins.add(new Pair(coin.getX(), coin.getY()));
+                    for (var enemy : getGameWorld().getEntitiesByType(ENEMY)) {
+                        pos.enemies.put(getUUID(enemy), new Position2D(enemy.getX(), enemy.getY()));
+                    }
 
-                var enemies = getGameWorld().getEntitiesByType(ENEMY);
-                for (var enemy : enemies)
-                    pos.coins.add(new Pair(enemy.getX(), enemy.getY()));
+                    pos.player1 = new Pair(getUUID(player1), new Position2D(player1.getX(), player1.getY()));
+                    pos.player2 = new Pair(getUUID(player2), new Position2D(player2.getX(), player2.getY()));
+                    pos.player3 = new Pair(getUUID(player3), new Position2D(player3.getX(), player3.getY()));
+                    pos.player4 = new Pair(getUUID(player4), new Position2D(player4.getX(), player4.getY()));
 
-                pos.player1 = new Pair(player1.getX(), player1.getY());
-                pos.player2 = new Pair(player1.getX(), player2.getY());
-                pos.player3 = new Pair(player1.getX(), player3.getY());
-                pos.player4 = new Pair(player1.getX(), player4.getY());
+                    for (int i = 1; i <= 4; i++)
+                        bundle.put(String.format("score%d", i), geti(String.format("score%d", i)));
+                    bundle.put("time", geti("time"));
 
-                for (int i = 1; i <= 4; i++)
-                    bundle.put(String.format("score%d", i), geti(String.format("score%d", i)));
+                    bundle.put("pos", pos);
 
-                bundle.put("time", geti("time"));
-
-                bundle.put("pos", pos);
-
-                data.putBundle(bundle);
+                    data.putBundle(bundle);
+                }
             }
 
             @Override
             public void onLoad(DataFile data) {
                 if (IS_SERVER) {
 
-                    var bundle = data.getBundle("gameData");
+                    Bundle bundle = data.getBundle("saveData");
                     PosData pos = bundle.get("pos");
-                    // 服务器端通过网络生成entity
-                    for (var coinPos : pos.coins) {
-                        var coin = spawn("0", new Point2D(coinPos.getKey(), coinPos.getValue()));
-                        spawnOnAllConnections(coin, "0");
-                    }
-                    
-                    for (var ePos : pos.enemies) {
-                        var enemy = spawn("E", new Point2D(ePos.getKey(), ePos.getValue()));
-                        spawnOnAllConnections(enemy, "E");
+                    Bundle send = new Bundle("updateData");
+                    NetMessage msg = new NetMessage();
+
+                    for (var cPos : pos.coins.entrySet()) {
+                        SpawnData cData = new SpawnData(cPos.getValue().x, cPos.getValue().y);
+                        cData.put("uuid", cPos.getKey());
+                        getGameWorld().spawn("0", cData);
+                        msg.actItems.put(cPos.getKey(), new ActionData(ADD, COIN, cPos.getValue().x, cPos.getValue().y));
                     }
 
-                    player1 = spawn("P", new Point2D(pos.player1.getKey(), pos.player1.getValue()));
-                    player2 = spawn("P", new Point2D(pos.player2.getKey(), pos.player2.getValue()));
-                    player3 = spawn("P", new Point2D(pos.player3.getKey(), pos.player3.getValue()));
-                    player4 = spawn("P", new Point2D(pos.player4.getKey(), pos.player4.getValue()));
+                    for (var ePos : pos.enemies.entrySet()) {
+                        SpawnData eData = new SpawnData(ePos.getValue().x, ePos.getValue().y);
+                        eData.put("uuid", ePos.getKey());
+                        getGameWorld().spawn("E", eData);
+                        msg.actItems.put(ePos.getKey(), new ActionData(ADD, ENEMY, ePos.getValue().x, ePos.getValue().y));
+                    }
 
-                    spawnOnAllConnections(player1, "P");
-                    spawnOnAllConnections(player2, "P");
-                    spawnOnAllConnections(player3, "P");
-                    spawnOnAllConnections(player4, "P");
+                    SpawnData pData1 = new SpawnData(pos.player1.getValue().x, pos.player1.getValue().y);
+                    pData1.put("uuid", pos.player1.getKey());
+                    player1 = getGameWorld().spawn("P", pData1);
+                    msg.actItems.put(pos.player1.getKey(), new ActionData(ADD, PLAYER, pos.player1.getValue().x, pos.player2.getValue().y));
+
+                    SpawnData pData2 = new SpawnData(pos.player2.getValue().x, pos.player2.getValue().y);
+                    pData2.put("uuid", pos.player2.getKey());
+                    player2 = getGameWorld().spawn("P", pData2);
+                    msg.actItems.put(pos.player2.getKey(), new ActionData(ADD, PLAYER, pos.player2.getValue().x, pos.player2.getValue().y));
+
+                    SpawnData pData3 = new SpawnData(pos.player3.getValue().x, pos.player3.getValue().y);
+                    pData3.put("uuid", pos.player3.getKey());
+                    player3 = getGameWorld().spawn("P", pData3);
+                    msg.actItems.put(pos.player3.getKey(), new ActionData(ADD, PLAYER, pos.player3.getValue().x, pos.player3.getValue().y));
+
+                    SpawnData pData4 = new SpawnData(pos.player4.getValue().x, pos.player4.getValue().y);
+                    pData4.put("uuid", pos.player4.getKey());
+                    player4 = getGameWorld().spawn("P", pData4);
+                    msg.actItems.put(pos.player4.getKey(), new ActionData(ADD, PLAYER, pos.player4.getValue().x, pos.player4.getValue().y));
+
+                    send.put("items", msg);
 
                     set("time", bundle.get("time"));
-                    for (int i = 1; i < 4; i++) 
+                    for (int i = 1; i <= 4; i++) {
                         set(String.format("score%d", i), bundle.get(String.format("score%d", i)));
+                    }
+
+                    server.broadcast(bundle);
+                    
                 }
             }
         });
-    }
-
-    private void spawnOnAllConnections(Entity e, String name) {
-        for (var conn : server.getConnections())
-            getMPService().spawn(conn, e, name);
     }
 
     @Override
@@ -270,7 +292,7 @@ public class App extends GameApplication{
         if (IS_SERVER) {
             server = getNetService().newTCPServer(55555);
 
-            // TODO: 服务器端生成所有可移动物体并加上UUID
+            // 服务器端生成所有可移动物体并加上UUID
             GameWorld toolWorld = new GameWorld();
             Level orign = getAssetLoader().loadLevel("small.txt", new TextLevelLoader(40, 40, ' '));
             toolWorld.setLevel(orign);
@@ -291,7 +313,6 @@ public class App extends GameApplication{
             server.setOnConnected(conn -> {
 
                 getExecutor().startAsyncFX(() -> {
-                    // FIXME: 添加检查连接数是否满4逻辑
                     // 向客户端发送消息生成所有可移动物体
                     Bundle bundle = new Bundle("updateData");
 
@@ -335,14 +356,27 @@ public class App extends GameApplication{
             server.startAsync();
 
             run(() -> inc("time", -1), Duration.seconds(1));
+
+            getWorldProperties().<Integer>addListener("time", (old, now) -> {
+                if (now == 0) {
+                    gameOver();
+                }
+            });
         } else {
 
             var client = getNetService().newTCPClient("localhost", 55555);
             client.setOnConnected(conn -> {
 
                 conn.addMessageHandlerFX((connection, message) -> {
-                    NetMessage msg = message.get("items");
-                    handleUpdateMessage(msg);
+                    if (message.exists("items")) {
+                        handleUpdateMessage(message.get("items"));
+                        set("score1", message.get("score1"));
+                        set("score2", message.get("score2"));
+                        set("score3", message.get("score3"));
+                        set("score4", message.get("score4"));
+                    }
+                    else if (message.exists("winner")) 
+                        gameOverDialog(message.get("winner"));
                 });
 
                 getMPService().addEntityReplicationReceiver(conn, getGameWorld());
@@ -361,11 +395,6 @@ public class App extends GameApplication{
 
         isReload = true;
 
-        getWorldProperties().<Integer>addListener("time", (old, now) -> {
-            if (now == 0) {
-                gameOver();
-            }
-        });
     }
 
     private void handleUpdateMessage(NetMessage msg) {
@@ -386,7 +415,6 @@ public class App extends GameApplication{
                             getGameWorld().spawn("PC", pData);
                             break;
                         case ENEMY:
-                            // FIXME: 可能需要去掉移动组件
                             SpawnData eData = new SpawnData(action.getValue().x, action.getValue().y);
                             eData.put("uuid", action.getKey());
                             getGameWorld().spawn("EC", eData);
@@ -396,28 +424,6 @@ public class App extends GameApplication{
                     }
                     break;
                 case MOVE:
-                    /* if (!getGameWorld().getEntityByID(action.getKey(), 0).isEmpty()) {
-                        Entity e = getGameWorld().getEntityByID(action.getKey(), 0).get();
-                        e.removeFromWorld();
-                        switch (action.getValue().entityType) {
-                            case COIN:
-                                getGameWorld().spawn("0", action.getValue().x, action.getValue().y);
-                                break;
-                            case PLAYER:
-                                getGameWorld().spawn("P", action.getValue().x, action.getValue().y);
-                                break;
-                            case ENEMY:
-                                // FIXME: 可能需要去掉移动组件
-                                var e1 = getGameWorld().spawn("E", action.getValue().x, action.getValue().y);
-                                e1.removeComponent(AStarMoveComponent.class);
-                                e1.removeComponent(DelayChaseComponent.class);
-                                e1.removeComponent(RandomAStarMoveComponent.class);
-                                break;
-                            default:
-                                break;
-                        }
-                    } */
-                    // int cellX = (int)Math.round(action.getValue().x / BLOCK_SIZE), cellY = (int)Math.round(action.getValue().x / BLOCK_SIZE);
                     double x = action.getValue().x, y = action.getValue().y;
                     if (!getGameWorld().getEntityByID(action.getKey(), 0).isEmpty()) {
                         Entity e = getGameWorld().getEntityByID(action.getKey(), 0).get();
@@ -448,9 +454,8 @@ public class App extends GameApplication{
 
     @Override
     protected void initPhysics() {
-        // TODO: 维护需要remove的实体集合
         if (IS_SERVER) {
-            // FIXME: 玩家和怪物碰撞
+            // 玩家和怪物碰撞
             onCollision(PLAYER, ENEMY, (p, e) -> {
                 toRemove.add(getUUID(p));
                 // p.removeFromWorld();
@@ -522,12 +527,13 @@ public class App extends GameApplication{
             toRemove.clear();
 
             bundle.put("items", msg);
+            for (int i = 1; i <= 4; i++)
+                bundle.put(String.format("score%d", i), geti(String.format("score%d", i)));
             server.broadcast(bundle);
         }
     }
 
     private void gameOver() {
-        // TODO: gameover
         int winner = 0, maxScore = 0;
         for (int i = 1; i <= 4; i++) {
             int score = geti(String.format("score%d", i));
@@ -536,7 +542,15 @@ public class App extends GameApplication{
                 maxScore = score;
             }
         }
-        getDialogService().showMessageBox(String.format("Player %d wins! Press OK to exit.", winner), getGameController()::exit);
+        //通知其他客户端
+        Bundle bundle = new Bundle("gameOver");
+        bundle.put("winner", winner);
+        server.broadcast(bundle);
+        gameOverDialog(winner);
+    }
+
+    private void gameOverDialog(int winner) {
+        getDialogService().showMessageBox(String.format("Player %d wins! Press OK to exit", winner), getGameController()::exit);
     }
 
     private MultiplayerService getMPService() {

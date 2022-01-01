@@ -26,6 +26,6 @@ public class Config {
         new Point2D(6 * BLOCK_SIZE, 5 * BLOCK_SIZE)
     };
     
-    public static boolean IS_SERVER = false;
+    public static boolean IS_SERVER = true;
     
 }

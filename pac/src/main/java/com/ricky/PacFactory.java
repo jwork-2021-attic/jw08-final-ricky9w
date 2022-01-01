@@ -73,7 +73,6 @@ public class PacFactory implements EntityFactory {
 
     @Spawns("P")
     public Entity newPlayer(SpawnData data) {
-        //AnimatedTexture view = texture("player.png").toAnimatedTexture(2, Duration.seconds(0.33));
         String uuid = data.hasKey("uuid") ? data.get("uuid") : UUID.randomUUID().toString();
 
         return entityBuilder(data)
@@ -81,7 +80,7 @@ public class PacFactory implements EntityFactory {
                 .bbox(new HitBox(new Point2D(4, 4), BoundingShape.box(30, 30)))
                 .anchorFromCenter()
                 // .view(view.loop())
-                .viewWithBBox(texture("p1.png", 36, 36))
+                .viewWithBBox(texture("p1.png", 32, 32))
                 .with(new CollidableComponent(true))
                 .with(new CellMoveComponent(BLOCK_SIZE, BLOCK_SIZE, 200).allowRotation(false))
                 .with(new AStarMoveComponent(new LazyValue<>(() -> geto("grid"))))
