@@ -11,7 +11,7 @@ import javafx.beans.binding.DoubleExpression;
 import javafx.geometry.Point2D;
 import javafx.util.Pair;
 
-public class PosData implements java.io.Serializable {
+public class PosData implements Serializable {
     
     public Set<Pair<Double, Double>> coins;
 

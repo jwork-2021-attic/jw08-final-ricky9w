@@ -8,17 +8,16 @@ import com.almasb.fxgl.entity.SpawnData;
 import com.almasb.fxgl.entity.Spawns;
 import com.almasb.fxgl.entity.component.Component;
 import com.almasb.fxgl.entity.components.CollidableComponent;
-import com.almasb.fxgl.entity.components.IDComponent;
 import com.almasb.fxgl.pathfinding.CellMoveComponent;
 import com.almasb.fxgl.pathfinding.astar.AStarMoveComponent;
 import com.almasb.fxgl.physics.BoundingShape;
 import com.almasb.fxgl.physics.HitBox;
-import com.almasb.fxgl.texture.AnimatedTexture;
 import com.almasb.fxgl.multiplayer.NetworkComponent;
+import com.almasb.fxgl.entity.components.IDComponent;
 import javafx.geometry.Point2D;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
-import javafx.util.Duration;
+import java.util.UUID;
 
 import java.util.Map;
 import java.util.function.Supplier;
@@ -57,6 +56,8 @@ public class PacFactory implements EntityFactory {
         view.setTranslateX(5);
         view.setTranslateY(5);
 
+        String uuid = data.hasKey("uuid") ? data.get("uuid") : UUID.randomUUID().toString();
+
         return entityBuilder(data)
                 .type(COIN)
                 .bbox(new HitBox(new Point2D(5, 5), BoundingShape.box(30, 30)))
@@ -66,16 +67,18 @@ public class PacFactory implements EntityFactory {
                 .with(new CellMoveComponent(BLOCK_SIZE, BLOCK_SIZE, 50))
                 .scale(0.5, 0.5)
                 .with(new NetworkComponent())
+                .with(new IDComponent(uuid, 0))
                 .build();
     }
 
     @Spawns("P")
     public Entity newPlayer(SpawnData data) {
         //AnimatedTexture view = texture("player.png").toAnimatedTexture(2, Duration.seconds(0.33));
+        String uuid = data.hasKey("uuid") ? data.get("uuid") : UUID.randomUUID().toString();
 
         return entityBuilder(data)
                 .type(PLAYER)
-                .bbox(new HitBox(new Point2D(4, 4), BoundingShape.box(32, 32)))
+                .bbox(new HitBox(new Point2D(4, 4), BoundingShape.box(30, 30)))
                 .anchorFromCenter()
                 // .view(view.loop())
                 .viewWithBBox(texture("p1.png", 36, 36))
@@ -86,6 +89,22 @@ public class PacFactory implements EntityFactory {
                 .rotationOrigin(35 / 2.0, 40 / 2.0)
                 .with(new NetworkComponent())
                 .with(new ScoreComponent())
+                .with(new IDComponent(uuid, 0))
+                .build();
+    }
+
+    @Spawns("PC")
+    public Entity newClientPlayer(SpawnData data) {
+        String uuid = data.hasKey("uuid") ? data.get("uuid") : UUID.randomUUID().toString();
+
+        return entityBuilder(data)
+                .type(PLAYER)
+                .bbox(new HitBox(new Point2D(4, 4), BoundingShape.box(32, 32)))
+                .anchorFromCenter()
+                .viewWithBBox(texture("p1.png", 36, 36))
+                .with(new CellMoveComponent(BLOCK_SIZE, BLOCK_SIZE, 200))
+                .with(new NetworkComponent())
+                .with(new IDComponent(uuid, 0))
                 .build();
     }
 
@@ -109,16 +128,34 @@ public class PacFactory implements EntityFactory {
 
     @Spawns("E")
     public Entity newEnemy(SpawnData data) {
+        String uuid = data.hasKey("uuid") ? data.get("uuid") : UUID.randomUUID().toString();
+
         return entityBuilder(data)
                 .type(ENEMY)
                 .bbox(new HitBox(new Point2D(2, 2), BoundingShape.box(32, 36)))
                 .anchorFromCenter()
                 .with(new CollidableComponent(true))
                 .viewWithBBox(texture("enemy.png", 36, 36))
-                .with(new CellMoveComponent(BLOCK_SIZE, BLOCK_SIZE, 125))
+                .with(new CellMoveComponent(BLOCK_SIZE, BLOCK_SIZE, 5))
                 .with(new AStarMoveComponent(new LazyValue<>(() -> geto("grid"))))
                 .with(aiComponents.get())
                 .with(new NetworkComponent())
+                .with(new IDComponent(uuid, 0))
+                .build();
+    }
+
+    @Spawns("EC")
+    public Entity newClientEnemy(SpawnData data) {
+        String uuid = data.hasKey("uuid") ? data.get("uuid") : UUID.randomUUID().toString();
+
+        return entityBuilder(data)
+                .type(ENEMY)
+                .bbox(new HitBox(new Point2D(2, 2), BoundingShape.box(32, 36)))
+                .anchorFromCenter()
+                .with(new CellMoveComponent(BLOCK_SIZE, BLOCK_SIZE, 5))
+                .viewWithBBox(texture("enemy.png", 36, 36))
+                .with(new NetworkComponent())
+                .with(new IDComponent(uuid, 0))
                 .build();
     }
 

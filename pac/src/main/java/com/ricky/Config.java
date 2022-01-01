@@ -1,7 +1,5 @@
 package com.ricky;
 
-import com.fasterxml.jackson.databind.ser.std.MapSerializer;
-
 import javafx.geometry.Point2D;
 
 public class Config {
@@ -28,6 +26,6 @@ public class Config {
         new Point2D(6 * BLOCK_SIZE, 5 * BLOCK_SIZE)
     };
     
-    public static boolean IS_SERVER = true;
+    public static boolean IS_SERVER = false;
     
 }
