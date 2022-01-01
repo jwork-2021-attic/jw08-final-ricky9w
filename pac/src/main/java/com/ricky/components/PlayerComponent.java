@@ -14,8 +14,8 @@ public class PlayerComponent extends Component {
 
     private AStarMoveComponent astar;
 
-    private Direction currMoveDir = RIGHT;
-    private Direction nextMoveDir = RIGHT;
+    public Direction currMoveDir = RIGHT;
+    public Direction nextMoveDir = RIGHT;
 
     public void up() {
         nextMoveDir = UP;

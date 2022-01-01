@@ -10,22 +10,18 @@ import com.almasb.fxgl.entity.level.Level;
 import com.almasb.fxgl.entity.level.text.TextLevelLoader;
 import com.almasb.fxgl.input.Input;
 import com.almasb.fxgl.input.UserAction;
-import com.almasb.fxgl.pathfinding.CellMoveComponent;
 import com.almasb.fxgl.pathfinding.CellState;
 import com.almasb.fxgl.pathfinding.astar.AStarGrid;
-import com.almasb.fxgl.pathfinding.astar.AStarMoveComponent;
 import com.almasb.fxgl.profile.DataFile;
 import com.almasb.fxgl.profile.SaveLoadHandler;
 import com.almasb.fxgl.ui.UI;
 import com.ricky.components.Direction;
 import com.ricky.components.PlayerComponent;
 import com.ricky.components.ScoreComponent;
-import com.ricky.components.ai.DelayChaseComponent;
 import com.ricky.network.NetMessage;
 import com.ricky.ui.PacUIController;
 import com.ricky.utils.PosData;
 import com.almasb.fxgl.core.serialization.Bundle;
-import com.almasb.fxgl.dsl.components.RandomAStarMoveComponent;
 import com.almasb.fxgl.multiplayer.MultiplayerService;
 import com.almasb.fxgl.net.Server;
 
@@ -34,11 +30,8 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 
-import javax.print.attribute.SetOfIntegerSyntax;
-import javax.print.attribute.standard.CopiesSupported;
-import javax.xml.stream.events.EndElement;
-
 import java.util.HashSet;
+import java.util.EnumSet;
 import java.math.*;
 
 import javafx.geometry.Point2D;
@@ -55,7 +48,6 @@ import static com.ricky.PacType.*;
 import static com.ricky.network.ActionType.*;
 
 import com.ricky.network.ActionData;
-import java.util.Map;
 
 public class App extends GameApplication{
 
@@ -91,6 +83,8 @@ public class App extends GameApplication{
     // private Map<Integer, Pair<Entity, Input>> ctrlMap = new HashMap<>();
 
     private PlayerComponent getPlayerComponent(Entity player) {
+        if (player == null)
+            throw(new NullPointerException());
         if (player.hasComponent(PlayerComponent.class))
             return player.getComponent(PlayerComponent.class);
         return null;
@@ -558,12 +552,6 @@ public class App extends GameApplication{
     }
 
     public static void main(String args[]) {
-        /* if (args.length == 1) {
-            IS_SERVER = true;
-        }
-        else {
-            IS_SERVER = false;
-        } */
         launch(args);
     }
 
