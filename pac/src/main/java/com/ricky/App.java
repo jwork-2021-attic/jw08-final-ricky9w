@@ -2,79 +2,41 @@ package com.ricky;
 
 import com.almasb.fxgl.app.GameApplication;
 import com.almasb.fxgl.app.GameSettings;
-import com.almasb.fxgl.app.MenuItem;
-import com.almasb.fxgl.app.scene.FXGLMenu;
-import com.almasb.fxgl.app.scene.SceneFactory;
-import com.almasb.fxgl.app.scene.FXGLDefaultMenu.MenuContent;
 import com.almasb.fxgl.entity.Entity;
 import com.almasb.fxgl.entity.GameWorld;
 import com.almasb.fxgl.entity.SpawnData;
 import com.almasb.fxgl.entity.components.IDComponent;
 import com.almasb.fxgl.entity.level.Level;
 import com.almasb.fxgl.entity.level.text.TextLevelLoader;
-import com.almasb.fxgl.event.EventBus;
 import com.almasb.fxgl.input.Input;
 import com.almasb.fxgl.input.UserAction;
-import com.almasb.fxgl.net.BundleTCPMessageReader;
-import com.almasb.fxgl.net.Client;
 import com.almasb.fxgl.pathfinding.CellState;
 import com.almasb.fxgl.pathfinding.astar.AStarGrid;
 import com.almasb.fxgl.profile.DataFile;
 import com.almasb.fxgl.profile.SaveLoadHandler;
 import com.almasb.fxgl.ui.UI;
-import com.fasterxml.jackson.annotation.ObjectIdGenerators.StringIdGenerator;
-import com.fasterxml.jackson.databind.deser.impl.PropertyValue;
-import com.fasterxml.jackson.databind.ser.std.InetAddressSerializer;
-import com.fasterxml.jackson.databind.util.EnumValues;
 import com.ricky.components.Direction;
 import com.ricky.components.PlayerComponent;
 import com.ricky.components.ScoreComponent;
 import com.ricky.ui.PacUIController;
 import com.ricky.utils.PosData;
-import com.almasb.fxgl.core.collection.Array;
 import com.almasb.fxgl.core.serialization.Bundle;
-import com.almasb.fxgl.dsl.KeyInputBuilder;
 import com.almasb.fxgl.multiplayer.MultiplayerService;
-import com.almasb.fxgl.multiplayer.NetworkComponent;
-import com.almasb.fxgl.multiplayer.ReplicationEvent;
-import com.almasb.fxgl.net.Connection;
 import com.almasb.fxgl.net.Server;
 import java.util.EnumSet;
 import java.util.HashMap;
 
 import javafx.geometry.Point2D;
-import javafx.print.PrintColor;
-import javafx.scene.chart.PieChart.Data;
-import javafx.scene.control.Menu;
-import javafx.scene.effect.ColorInput;
 import javafx.scene.input.KeyCode;
-import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
 import javafx.util.Duration;
 import javafx.util.Pair;
-import kotlin.ExtensionFunctionType;
-import kotlin.contracts.Returns;
 
 import static com.almasb.fxgl.dsl.FXGL.*;
 
 import static com.ricky.Config.*;
 import static com.ricky.PacType.*;
-
-import java.net.Socket;
-import java.security.KeyStore.Entry;
-import java.sql.ClientInfoStatus;
-import java.sql.Time;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.concurrent.LinkedBlockingDeque;
-
-import javax.lang.model.util.ElementScanner6;
-import javax.security.auth.login.FailedLoginException;
-import javax.swing.plaf.metal.MetalBorders.PaletteBorder;
-import javax.xml.datatype.DatatypeFactory;
 
 public class App extends GameApplication{
 
@@ -270,7 +232,7 @@ public class App extends GameApplication{
 
         getGameWorld().addEntityFactory(new PacFactory());
 
-        Level basic = getAssetLoader().loadLevel("reload.txt", new TextLevelLoader(40, 40, ' '));
+        Level basic = getAssetLoader().loadLevel("small_r.txt", new TextLevelLoader(40, 40, ' '));
         getGameWorld().setLevel(basic);
 
         AStarGrid grid = AStarGrid.fromWorld(getGameWorld(), MAP_SIZE, MAP_SIZE, BLOCK_SIZE, BLOCK_SIZE, (type) -> {
@@ -287,34 +249,36 @@ public class App extends GameApplication{
 
                 getExecutor().startAsyncFX(() -> {
                     // FIXME: 添加检查连接数是否满4逻辑
-                    GameWorld toolWorld = new GameWorld();
-                    Level orign = getAssetLoader().loadLevel("origin.txt", new TextLevelLoader(40, 40, ' '));
-                    toolWorld.setLevel(orign);
+                        GameWorld toolWorld = new GameWorld();
+                        Level orign = getAssetLoader().loadLevel("small.txt", new TextLevelLoader(40, 40, ' '));
+                        toolWorld.setLevel(orign);
 
-                    // 生成砖块
-                    for (var block : toolWorld.getEntitiesByType(BLOCK)) {
-                        var sBlock = spawn("1", new Point2D(block.getX(), block.getY()));
-                        getMPService().spawn(conn, sBlock, "1");
-                    }
-                    // 生成硬币
-                    for (var coin : toolWorld.getEntitiesByType(COIN)) {
-                        var sCoin = spawn("0", coin.getX(), coin.getY());
-                        getMPService().spawn(conn, sCoin, "0");
-                    }
-                    // 生成玩家
-                    player1 = spawn("P", SPAWN_PLAYERS[0]);
-                    getMPService().spawn(conn, player1, "P");
-                    player2 = spawn("P", SPAWN_PLAYERS[1]);
-                    getMPService().spawn(conn, player2, "P");
-                    player3 = spawn("P", SPAWN_PLAYERS[2]);
-                    getMPService().spawn(conn, player3, "P");
-                    player4 = spawn("P", SPAWN_PLAYERS[3]);
-                    getMPService().spawn(conn, player4, "P");
-                    // 生成怪物
-                    for (int i = 0; i < 4; i++) {
-                        var enemy = spawn("E", SPAWN_ENEMIES[i]);
-                        getMPService().spawn(conn, enemy, "E");
-                    }
+                        // 生成砖块
+                        for (var block : toolWorld.getEntitiesByType(BLOCK)) {
+                            var sBlock = spawn("1", new Point2D(block.getX(), block.getY()));
+                            getMPService().spawn(conn, sBlock, "1");
+                            
+                        }
+                        // 生成硬币
+                        for (var coin : toolWorld.getEntitiesByType(COIN)) {
+                            var sCoin = spawn("0", coin.getX(), coin.getY());
+                            getMPService().spawn(conn, sCoin, "0");
+                        }
+                        // 生成玩家
+                        player1 = spawn("P", SPAWN_PLAYERS[0]);
+                        getMPService().spawn(conn, player1, "P");
+                        player2 = spawn("P", SPAWN_PLAYERS[1]);
+                        getMPService().spawn(conn, player2, "P");
+                        player3 = spawn("P", SPAWN_PLAYERS[2]);
+                        getMPService().spawn(conn, player3, "P");
+                        player4 = spawn("P", SPAWN_PLAYERS[3]);
+                        getMPService().spawn(conn, player4, "P");
+                        // 生成怪物
+                        for (int i = 0; i < 4; i++) {
+                            var enemy = spawn("E", SPAWN_ENEMIES[i]);
+                            getMPService().spawn(conn, enemy, "E");
+                        }
+                    
 
                     // 绑定客户端输入
                     switch (conn.getConnectionNum()) {
@@ -417,7 +381,7 @@ public class App extends GameApplication{
 
     private void gameOver() {
         // TODO: gameover
-        /* int winner = 0, maxScore = 0;
+        int winner = 0, maxScore = 0;
         for (int i = 1; i <= 4; i++) {
             int score = geti(String.format("score%d", i));
             if (score >= maxScore) {
@@ -425,7 +389,7 @@ public class App extends GameApplication{
                 maxScore = score;
             }
         }
-        getDialogService().showMessageBox(String.format("Player %d wins! Press OK to exit.", winner), getGameController()::exit); */
+        getDialogService().showMessageBox(String.format("Player %d wins! Press OK to exit.", winner), getGameController()::exit);
     }
 
     private MultiplayerService getMPService() {
