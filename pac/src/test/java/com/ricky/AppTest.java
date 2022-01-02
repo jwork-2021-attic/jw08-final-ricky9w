@@ -2,6 +2,7 @@ package com.ricky;
 
 import static org.junit.Assert.assertTrue;
 
+import com.almasb.fxgl.app.GameApplication;
 import com.almasb.fxgl.app.GameSettings;
 import com.almasb.fxgl.entity.Entity;
 import com.ricky.components.Direction;
@@ -76,5 +77,11 @@ public class AppTest
             System.out.println(e);
         }
        
+    }
+
+    @Test
+    public void gameLaunchTest() {
+        String[] args = {};
+        GameApplication.launch(App.class, args);
     }
 }

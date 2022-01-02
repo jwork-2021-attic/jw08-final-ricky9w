@@ -2,6 +2,8 @@ package com.ricky;
 
 import com.almasb.fxgl.app.GameApplication;
 import com.almasb.fxgl.app.GameSettings;
+import com.almasb.fxgl.app.MenuItem;
+import com.almasb.fxgl.app.scene.MenuType;
 import com.almasb.fxgl.entity.Entity;
 import com.almasb.fxgl.entity.GameWorld;
 import com.almasb.fxgl.entity.SpawnData;
@@ -24,21 +26,20 @@ import com.ricky.utils.PosData;
 import com.almasb.fxgl.core.serialization.Bundle;
 import com.almasb.fxgl.multiplayer.MultiplayerService;
 import com.almasb.fxgl.net.Server;
+import com.almasb.fxgl.app.scene.FXGLMenu;
+import com.almasb.fxgl.app.scene.MenuType;
 
-import java.lang.invoke.VarHandle;
-import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.Map;
-
-import java.util.HashSet;
 import java.util.EnumSet;
-import java.math.*;
+import java.util.HashSet;
 
 import javafx.geometry.Point2D;
 import javafx.scene.input.KeyCode;
 import javafx.scene.paint.Color;
 import javafx.util.Duration;
 import javafx.util.Pair;
+import kotlin.TuplesKt;
+
 import com.ricky.utils.Position2D;
 
 import static com.almasb.fxgl.dsl.FXGL.*;
@@ -61,8 +62,8 @@ public class App extends GameApplication{
     
     @Override
     protected void initSettings(GameSettings settings) {
-        // settings.setMainMenuEnabled(true);
-        // settings.setEnabledMenuItems(EnumSet.allOf(MenuItem.class));
+        settings.setMainMenuEnabled(true);
+        settings.setEnabledMenuItems(EnumSet.allOf(MenuItem.class));
 
         settings.addEngineService(MultiplayerService.class);
 
@@ -364,10 +365,13 @@ public class App extends GameApplication{
                 conn.addMessageHandlerFX((connection, message) -> {
                     if (message.exists("items")) {
                         handleUpdateMessage(message.get("items"));
-                        set("score1", message.get("score1"));
-                        set("score2", message.get("score2"));
-                        set("score3", message.get("score3"));
-                        set("score4", message.get("score4"));
+                        if(message.exists("score1")){
+                            set("score1", message.get("score1"));
+                            set("score2", message.get("score2"));
+                            set("score3", message.get("score3"));
+                            set("score4", message.get("score4"));
+                        }
+                        
                     }
                     else if (message.exists("winner")) 
                         gameOverDialog(message.get("winner"));
@@ -552,6 +556,11 @@ public class App extends GameApplication{
     }
 
     public static void main(String args[]) {
+        if (args.length == 1) {
+            IS_SERVER = true;
+        } else {
+            IS_SERVER = false;
+        }
         launch(args);
     }
 
